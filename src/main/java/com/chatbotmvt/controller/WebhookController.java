@@ -33,17 +33,26 @@ public class WebhookController {
     @PostMapping
     public ResponseEntity<Void> receiveMessage(@RequestBody WebhookRequest request) {
 
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.println("📡 WEBHOOK RECIBIDO");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         var messageOpt = extractMessage(request);
 
-        if (messageOpt.isEmpty()) return ResponseEntity.ok().build();
+        if (messageOpt.isEmpty()) {
+            System.out.println("❌ No se encontró mensaje en payload");
+            return ResponseEntity.ok().build();
+        }
 
         var msg = messageOpt.get();
 
         if (msg.text() == null || msg.text().body() == null) {
+            System.out.println("⚠️ Mensaje sin texto válido");
             return ResponseEntity.ok().build();
         }
 
-        System.out.println("Mensaje recibido: " + msg.from() + " -> " + msg.text().body());
+        System.out.println("📨 FROM: " + msg.from());
+        System.out.println("💬 BODY: " + msg.text().body());
 
         botService.processMessage(msg.from(), msg.text().body());
 
