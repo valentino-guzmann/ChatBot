@@ -14,7 +14,7 @@ public class RestClientConfig {
     @Bean
     public RestClient restClient() {
         return RestClient.builder()
-                .baseUrl("https://graph.facebook.com/v19.0")
+                .baseUrl("https://graph.facebook.com/v25.0")
                 .defaultHeader("Authorization", "Bearer " + accessToken)
                 .build();
     }
