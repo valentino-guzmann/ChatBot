@@ -3,11 +3,12 @@ package com.chatbotmvt.services;
 import com.chatbotmvt.dto.SendMessageRequest;
 import com.chatbotmvt.dto.Text;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WhatsappService {
@@ -19,10 +20,17 @@ public class WhatsappService {
 
     public void sendMessage(String phone, String message) {
 
-        if (phone == null || phone.isBlank()) return;
-        if (message == null || message.isBlank()) return;
+        if (phone == null || phone.isBlank()) {
+            log.warn("⚠️ phone vacío");
+            return;
+        }
 
-        System.out.println("Enviando mensaje a: " + phone + " -> " + message);
+        if (message == null || message.isBlank()) {
+            log.warn("⚠️ message vacío");
+            return;
+        }
+
+        log.info("📤 Enviando WhatsApp -> phone: {}, message: {}", phone, message);
 
         var request = new SendMessageRequest(
                 "whatsapp",
@@ -31,15 +39,17 @@ public class WhatsappService {
                 new Text(message)
         );
 
-        restClient.post()
-                .uri("/{phoneId}/messages", phoneNumberId)
-                .body(request)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, (req, res) -> {
-                    var body = new String(res.getBody().readAllBytes());
-                    System.out.println("ERROR WHATSAPP: " + body);
-                    throw new RuntimeException(body);
-                })
-                .toBodilessEntity();
+        try {
+            restClient.post()
+                    .uri("/{phoneId}/messages", phoneNumberId)
+                    .body(request)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("✅ Mensaje enviado correctamente");
+
+        } catch (Exception e) {
+            log.error("❌ Error enviando WhatsApp message: {}", e.getMessage());
+        }
     }
 }

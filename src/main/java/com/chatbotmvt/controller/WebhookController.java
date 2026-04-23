@@ -54,7 +54,11 @@ public class WebhookController {
         System.out.println("📨 FROM: " + msg.from());
         System.out.println("💬 BODY: " + msg.text().body());
 
-        botService.processMessage(msg.from(), msg.text().body());
+        try {
+            botService.processMessage(msg.from(), msg.text().body());
+        } catch (Exception e) {
+            System.err.println("❌ ERROR EN BOT: " + e.getMessage());
+        }
 
         return ResponseEntity.ok().build();
     }
