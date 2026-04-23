@@ -36,7 +36,9 @@ public class WhatsappService {
                 .body(request)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (req, res) -> {
-                    throw new RuntimeException("Error enviando mensaje a WhatsApp");
+                    var body = new String(res.getBody().readAllBytes());
+                    System.out.println("ERROR WHATSAPP: " + body);
+                    throw new RuntimeException(body);
                 })
                 .toBodilessEntity();
     }
