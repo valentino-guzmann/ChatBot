@@ -18,7 +18,7 @@ public class WhatsappService {
     @Value("${whatsapp.phone-id}")
     private String phoneNumberId;
 
-    @Value("${whatsapp.access-token}")
+    @Value("${access.token}")
     private String accessToken;
 
     public void sendMessage(String phone, String message) {
