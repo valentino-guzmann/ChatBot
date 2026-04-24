@@ -28,6 +28,7 @@ public class BotService {
 
         var estadoActual = usuario.getCurrentState();
 
+        // Validación básica
         if (message == null || message.isBlank()) {
             log.warn("⚠️ [BOT] Mensaje vacío o null");
             whatsappService.sendMessage(phone, "No entendí tu mensaje 🤔, intentalo de nuevo");
@@ -37,6 +38,16 @@ public class BotService {
         message = message.trim();
         log.debug("✂️ [BOT] Mensaje normalizado: {}", message);
 
+        // 👋 DETECCIÓN DE SALUDO (robusta)
+        if (isGreeting(message)) {
+            log.info("👋 [BOT] Saludo detectado");
+
+            whatsappService.sendSaludoTemplate(phone);
+
+            return; // 🔥 corta flujo
+        }
+
+        // 🧠 LÓGICA PRINCIPAL
         if (estadoActual.getType() == TipoEstado.MENU) {
 
             log.info("📌 [BOT] Estado MENU detectado");
@@ -70,11 +81,27 @@ public class BotService {
         } else if (estadoActual.getType() == TipoEstado.INPUT) {
 
             log.info("⌨️ [BOT] Estado INPUT (pendiente implementación)");
-            // reclamos
+            // futura lógica (ej: reclamos, formularios, etc)
 
         } else {
             log.error("💥 [BOT] Estado desconocido: {}", estadoActual.getType());
             whatsappService.sendMessage(phone, "⚠️ Error interno, intenta nuevamente");
         }
+    }
+
+    private boolean isGreeting(String message) {
+        String msg = normalize(message);
+
+        return msg.startsWith("hola")
+                || msg.startsWith("buenas")
+                || msg.startsWith("hi")
+                || msg.startsWith("hello");
+    }
+
+    private String normalize(String input) {
+        return input.toLowerCase()
+                .replaceAll("[^a-záéíóúñ ]", "")
+                .replaceAll("(.)\\1{2,}", "$1$1")
+                .trim();
     }
 }

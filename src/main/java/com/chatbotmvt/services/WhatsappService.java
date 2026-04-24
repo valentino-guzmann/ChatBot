@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.Map;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -20,6 +22,35 @@ public class WhatsappService {
 
     @Value("${access.token}")
     private String accessToken;
+
+    public void sendSaludoTemplate(String phone) {
+
+        phone = formatPhone(phone);
+
+        var request = Map.of(
+                "messaging_product", "whatsapp",
+                "to", phone,
+                "type", "template",
+                "template", Map.of(
+                        "name", "saludo",
+                        "language", Map.of("code", "es") // o es_AR si corresponde
+                )
+        );
+
+        try {
+            restClient.post()
+                    .uri("/{phoneId}/messages", phoneNumberId)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .body(request)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("✅ Template saludo enviado");
+
+        } catch (Exception e) {
+            log.error("❌ Error enviando template saludo: {}", e.getMessage());
+        }
+    }
 
     public void sendMessage(String phone, String message) {
 
@@ -55,5 +86,12 @@ public class WhatsappService {
         } catch (Exception e) {
             log.error("❌ Error enviando WhatsApp message: {}", e.getMessage());
         }
+    }
+
+    private String formatPhone(String phone) {
+        if (phone.startsWith("549")) {
+            return "54" + phone.substring(3);
+        }
+        return phone;
     }
 }
