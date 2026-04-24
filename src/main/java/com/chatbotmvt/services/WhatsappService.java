@@ -8,8 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
-import java.util.Map;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -37,14 +35,11 @@ public class WhatsappService {
 
         log.info("📤 Enviando WhatsApp -> phone: {}, message: {}", phone, message);
 
-        var request = Map.of(
-                "messaging_product", "whatsapp",
-                "to", phone,
-                "type", "template",
-                "template", Map.of(
-                        "name", "hello_world",
-                        "language", Map.of("code", "en_US")
-                )
+        var request = new SendMessageRequest(
+                "whatsapp",
+                phone,
+                "text",
+                new Text(message)
         );
 
         try {
