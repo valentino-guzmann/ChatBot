@@ -18,6 +18,9 @@ public class WhatsappService {
     @Value("${whatsapp.phone-id}")
     private String phoneNumberId;
 
+    @Value("${whatsapp.access-token}")
+    private String accessToken;
+
     public void sendMessage(String phone, String message) {
 
         if (phone == null || phone.isBlank()) {
@@ -42,6 +45,7 @@ public class WhatsappService {
         try {
             restClient.post()
                     .uri("/{phoneId}/messages", phoneNumberId)
+                    .header("Authorization", "Bearer " + accessToken)
                     .body(request)
                     .retrieve()
                     .toBodilessEntity();
