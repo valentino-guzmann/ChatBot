@@ -1,14 +1,15 @@
 package com.chatbotmvt.services;
 
 import com.chatbotmvt.entity.BotState;
+import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.handlers.InputHandler;
 import com.chatbotmvt.handlers.MenuHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-@Slf4j
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class BotService {
 
@@ -21,64 +22,50 @@ public class BotService {
 
         log.info("📩 Mensaje recibido de [{}]: {}", phone, message);
 
-        boolean esNuevo = usuarioSesionService.esNuevoUsuario(phone);
+        var usuario = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-        var existente = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
-
-        log.info("👤 Usuario [{}] en estado: {}", phone, existente.getCurrentState().getName());
-
-        if (existente.getStep() == 0 && existente.getTempData() == null) {
-            esNuevo = true;
-            log.info("🆕 Usuario [{}] detectado como nuevo → se envió saludo", phone);
-        }
-
-        if (esNuevo) {
-            log.info("🆕 Usuario [{}] real → saludo enviado", phone);
-            return null;
-        }
-
-        var estado = existente.getCurrentState();
+        var estado = usuario.getCurrentState();
         String input = message == null ? "" : message.trim();
 
-        log.info("🔎 Input normalizado para [{}]: '{}'", phone, input);
+        log.info("👤 Usuario [{}] en estado: {}", phone, estado.getName());
 
-        if (estado.getType().name().equals("MENU")) {
+        if (input.equalsIgnoreCase("menu")) {
+            log.info("🔄 Usuario [{}] pidió volver al menú", phone);
 
-            log.info("📋 Procesando como MENU → estado: {}", estado.getName());
-            menuHandler.handle(existente, input);
+            var estadoInicial = usuarioSesionService.obtenerEstadoInicial();
+            usuario.setCurrentState(estadoInicial);
 
-        } else if (estado.getType().name().equals("INPUT")) {
-
-            log.info("✏️ Procesando como INPUT → estado: {}", estado.getName());
-            inputHandler.handle(existente, input);
+            estado = estadoInicial;
         }
 
-        usuarioSesionService.save(existente);
+        if (estado.getType().name().equals("MENU")) {
+            menuHandler.handle(usuario, input);
+        } else if (estado.getType().name().equals("INPUT")) {
+            inputHandler.handle(usuario, input);
+        }
 
-        var nuevoEstado = existente.getCurrentState();
+        usuarioSesionService.save(usuario);
 
-        log.info("🔄 Usuario [{}] cambió a estado: {}", phone, nuevoEstado.getName());
-
-        String response = construirRespuesta(nuevoEstado);
-
-        log.info("📤 Respuesta generada para [{}]: \n{}", phone, response);
-
-        return response;
+        return construirRespuesta(usuario);
     }
 
-    private String construirRespuesta(BotState estado) {
-
-        log.info("🛠️ Construyendo respuesta para estado: {}", estado.getName());
+    private String construirRespuesta(UsuarioSesion usuario) {
+        var estado = usuario.getCurrentState();
 
         StringBuilder response = new StringBuilder();
 
         response.append(estado.getMessage()).append("\n\n");
 
+        if ("error".equals(usuario.getTempData())) {
+            response.append("❌ Opción inválida, intenta nuevamente\n\n");
+
+            // 👉 limpiar error después de mostrarlo
+            usuario.setTempData(null);
+        }
+
         if (estado.getType().name().equals("MENU")) {
 
             var opciones = botOpcionService.obtenerOpciones(estado);
-
-            log.info("📊 Estado {} tiene {} opciones", estado.getName(), opciones.size());
 
             for (var op : opciones) {
                 response.append(op.getOptionKey())

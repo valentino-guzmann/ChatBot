@@ -18,7 +18,6 @@ public class BotStateService {
     }
 
     public UsuarioSesion crearUsuario(String phone) {
-
         BotState estadoActual = getMenuState();
 
         var nuevoUsuario = new UsuarioSesion();

@@ -1,5 +1,6 @@
 package com.chatbotmvt.services;
 
+import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.repository.BotStateRepository;
 import com.chatbotmvt.repository.UsuarioSesionRepository;
@@ -30,20 +31,16 @@ public class UsuarioSesionService {
         var nueva = new UsuarioSesion();
         nueva.setPhone(phone);
         nueva.setCurrentState(estadoInicial);
-        nueva.setStep(0);
 
-        UsuarioSesion saved = usuarioSesionRepository.save(nueva);
+        return usuarioSesionRepository.save(nueva);
+    }
 
-        whatsappService.sendSaludoSeguro(phone);
-
-        return saved;
+    public BotState obtenerEstadoInicial() {
+        return botStateRepository.findById(1L)
+                .orElseThrow(() -> new RuntimeException("No existe estado inicial"));
     }
 
     public void save(UsuarioSesion sesion) {
         usuarioSesionRepository.save(sesion);
-    }
-
-    public boolean esNuevoUsuario(String phone) {
-        return usuarioSesionRepository.findByPhone(phone).isEmpty();
     }
 }

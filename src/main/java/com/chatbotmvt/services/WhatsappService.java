@@ -53,23 +53,6 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendSaludoSeguro(String phone) {
-
-        log.info("👋 Intentando enviar saludo template a [{}]", phone);
-
-        try {
-            sendTemplate(phone, "saludo");
-
-        } catch (Exception e) {
-
-            log.warn("⚠️ Falló template 'saludo' para [{}], fallback a mensaje normal", phone);
-            log.debug("Detalle error template: {}", e.getMessage());
-
-            sendMessage(phone,
-                    "👋 Hola! Bienvenido a Servicios Públicos.\n\nEscribe cualquier mensaje para comenzar.");
-        }
-    }
-
     private void execute(Object body) {
 
         log.debug("🚀 Ejecutando request a WhatsApp API");
