@@ -21,7 +21,7 @@ public class BotService {
 
         log.info("📩 Mensaje recibido de [{}]: {}", phone, message);
 
-        boolean esNuevo = false;
+        boolean esNuevo = usuarioSesionService.esNuevoUsuario(phone);
 
         var existente = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
@@ -33,7 +33,7 @@ public class BotService {
         }
 
         if (esNuevo) {
-            log.info("⏭️ Se omite procesamiento para [{}] (primer mensaje)", phone);
+            log.info("🆕 Usuario [{}] real → saludo enviado", phone);
             return null;
         }
 

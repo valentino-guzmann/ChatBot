@@ -42,4 +42,8 @@ public class UsuarioSesionService {
     public void save(UsuarioSesion sesion) {
         usuarioSesionRepository.save(sesion);
     }
+
+    public boolean esNuevoUsuario(String phone) {
+        return usuarioSesionRepository.findByPhone(phone).isEmpty();
+    }
 }
