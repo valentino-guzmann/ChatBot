@@ -13,21 +13,24 @@ public class MenuHandler {
 
     private final BotOpcionService botOpcionService;
 
-    public void handle(UsuarioSesion sesion, String message) {
-
-        String input = message == null ? "" : message.trim();
+    public void handle(UsuarioSesion sesion, String input) {
 
         var estado = sesion.getCurrentState();
 
         var opcion = botOpcionService.obtenerEstadoYOpcion(estado, input);
 
         if (opcion.isPresent()) {
-            log.info("➡️ Opción válida [{}] seleccionada", input);
+
+            log.info("✅ Opción válida: {}", input);
 
             sesion.setCurrentState(opcion.get().getNextState());
+            sesion.setStep(0);
+            sesion.setTempData(null);
 
         } else {
-            log.warn("❌ Opción inválida [{}] en estado [{}]", input, estado.getName());
+
+            log.warn("❌ Opción inválida: {}", input);
+            sesion.setTempData("error");
         }
     }
 }

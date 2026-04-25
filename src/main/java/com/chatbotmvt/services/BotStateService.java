@@ -12,18 +12,8 @@ public class BotStateService {
 
     private final BotStateRepository botStateRepository;
 
-    public BotState getMenuState() {
-        return botStateRepository.findByName("MENU_PRINCIPAL")
-                .orElseThrow(() -> new RuntimeException("Estado MENU no encontrado"));
-    }
-
-    public UsuarioSesion crearUsuario(String phone) {
-        BotState estadoActual = getMenuState();
-
-        var nuevoUsuario = new UsuarioSesion();
-        nuevoUsuario.setPhone(phone);
-        nuevoUsuario.setCurrentState(estadoActual);
-
-        return nuevoUsuario;
+    public BotState findByName(String name) {
+        return botStateRepository.findByName(name)
+                .orElseThrow(() -> new RuntimeException("Estado no encontrado: " + name));
     }
 }

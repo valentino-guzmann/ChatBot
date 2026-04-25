@@ -17,30 +17,61 @@ public class BotService {
     private final MenuHandler menuHandler;
     private final InputHandler inputHandler;
     private final BotOpcionService botOpcionService;
+    private final BotStateService botStateService;
 
     public String procesarMensaje(String phone, String message) {
 
         log.info("📩 Mensaje recibido de [{}]: {}", phone, message);
 
-        var usuario = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+        UsuarioSesion usuario = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-        var estado = usuario.getCurrentState();
+        BotState estado = usuario.getCurrentState();
         String input = message == null ? "" : message.trim();
 
         log.info("👤 Usuario [{}] en estado: {}", phone, estado.getName());
 
         if (input.equalsIgnoreCase("menu")) {
-            log.info("🔄 Usuario [{}] pidió volver al menú", phone);
 
-            var estadoInicial = usuarioSesionService.obtenerEstadoInicial();
-            usuario.setCurrentState(estadoInicial);
+            usuario.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
+            usuario.setStep(0);
+            usuario.setTempData(null);
 
-            estado = estadoInicial;
+            usuarioSesionService.save(usuario);
+
+            return construirRespuesta(usuario);
         }
 
-        if (estado.getType().name().equals("MENU")) {
+        if (estado.getName().equals("CONFIRMACION")) {
+
+            if (input.equals("1")) {
+
+                log.info("✅ Confirmado: {}", usuario.getTempData());
+
+                usuario.setTempData(null);
+                usuario.setStep(0);
+
+                usuario.setCurrentState(
+                        usuarioSesionService.obtenerEstadoInicial()
+                );
+
+            } else if (input.equals("2")) {
+
+                log.info("🔄 Reingresar datos");
+
+                usuario.setTempData(null);
+                usuario.setStep(0);
+
+                usuario.setCurrentState(
+                        botStateService.findByName("INPUT_DESMALEZADO")
+                );
+            }
+        }
+        else if (estado.getType().name().equals("MENU")) {
+
             menuHandler.handle(usuario, input);
+
         } else if (estado.getType().name().equals("INPUT")) {
+
             inputHandler.handle(usuario, input);
         }
 
@@ -50,16 +81,20 @@ public class BotService {
     }
 
     private String construirRespuesta(UsuarioSesion usuario) {
-        var estado = usuario.getCurrentState();
 
+        BotState estado = usuario.getCurrentState();
         StringBuilder response = new StringBuilder();
 
-        response.append(estado.getMessage()).append("\n\n");
+        String mensaje = estado.getMessage();
+
+        if (mensaje.contains("{DATOS}") && usuario.getTempData() != null) {
+            mensaje = mensaje.replace("{DATOS}", usuario.getTempData());
+        }
+
+        response.append(mensaje).append("\n\n");
 
         if ("error".equals(usuario.getTempData())) {
             response.append("❌ Opción inválida, intenta nuevamente\n\n");
-
-            usuario.setTempData(null);
         }
 
         return response.toString();
