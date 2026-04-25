@@ -1,7 +1,6 @@
 package com.chatbotmvt.services;
 
 import com.chatbotmvt.entity.BotState;
-import com.chatbotmvt.entity.Usuario;
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.repository.BotStateRepository;
 import lombok.RequiredArgsConstructor;

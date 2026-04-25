@@ -10,5 +10,5 @@ import java.util.Optional;
 public interface BotOpcionRepository extends JpaRepository<BotOpcion, Long> {
     Optional<BotOpcion> findByStateAndOptionKey(BotState estadoActual, String message);
 
-    List<BotOpcion> findByState(BotState estado);
+    List<BotOpcion> findByStateOrderByOptionKeyAsc(BotState estado);
 }
