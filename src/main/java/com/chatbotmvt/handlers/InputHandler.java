@@ -22,7 +22,7 @@ public class InputHandler {
 
         switch (estado.getName()) {
 
-            case "INPUT_DESMALEZADO" -> handleDesmalezado(sesion, message, step);
+            case "INPUT_DESMALEZADO", "PEDIR_REFERENCIA" -> handleDesmalezado(sesion, message, step);
 
             default -> log.warn("⚠️ INPUT no manejado: {}", estado.getName());
         }
