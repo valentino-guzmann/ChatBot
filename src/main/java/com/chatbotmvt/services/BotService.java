@@ -94,18 +94,6 @@ public class BotService {
             response.append("❌ Ingresa un dato válido\n\n");
         }
 
-        if (estado.getType().name().equals("MENU")) {
-
-            var opciones = botOpcionService.obtenerOpciones(estado);
-
-            for (var op : opciones) {
-                response.append(op.getOptionKey())
-                        .append("️⃣ ")
-                        .append(op.getDescription())
-                        .append("\n");
-            }
-        }
-
         return response.toString();
     }
 }
