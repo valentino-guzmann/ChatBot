@@ -1,11 +1,14 @@
 package com.chatbotmvt.services;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WhatsappService {
@@ -19,6 +22,10 @@ public class WhatsappService {
     private String accessToken;
 
     public void sendMessage(String phone, String message) {
+
+        log.info("📤 Enviando mensaje de texto a [{}]", phone);
+        log.debug("📝 Contenido mensaje: {}", message);
+
         var body = Map.of(
                 "messaging_product", "whatsapp",
                 "to", formatPhone(phone),
@@ -30,6 +37,9 @@ public class WhatsappService {
     }
 
     public void sendTemplate(String phone, String templateName) {
+
+        log.info("📤 Enviando template [{}] a [{}]", templateName, phone);
+
         var body = Map.of(
                 "messaging_product", "whatsapp",
                 "to", formatPhone(phone),
@@ -44,10 +54,16 @@ public class WhatsappService {
     }
 
     public void sendSaludoSeguro(String phone) {
+
+        log.info("👋 Intentando enviar saludo template a [{}]", phone);
+
         try {
             sendTemplate(phone, "saludo");
+
         } catch (Exception e) {
-            System.err.println("❌ Template falló, uso mensaje normal");
+
+            log.warn("⚠️ Falló template 'saludo' para [{}], fallback a mensaje normal", phone);
+            log.debug("Detalle error template: {}", e.getMessage());
 
             sendMessage(phone,
                     "👋 Hola! Bienvenido a Servicios Públicos.\n\nEscribe cualquier mensaje para comenzar.");
@@ -55,6 +71,9 @@ public class WhatsappService {
     }
 
     private void execute(Object body) {
+
+        log.debug("🚀 Ejecutando request a WhatsApp API");
+
         try {
             restClient.post()
                     .uri("/{id}/messages", phoneNumberId)
@@ -63,13 +82,21 @@ public class WhatsappService {
                     .retrieve()
                     .toBodilessEntity();
 
+            log.info("✅ Mensaje enviado correctamente");
+
         } catch (Exception e) {
-            System.err.println("❌ Error enviando mensaje: " + e.getMessage());
+
+            log.error("❌ Error enviando mensaje a WhatsApp: {}", e.getMessage(), e);
             throw e;
         }
     }
 
     private String formatPhone(String p) {
-        return p.startsWith("549") ? "54" + p.substring(3) : p;
+
+        String formatted = p.startsWith("549") ? "54" + p.substring(3) : p;
+
+        log.debug("📱 Número formateado: {} → {}", p, formatted);
+
+        return formatted;
     }
 }
