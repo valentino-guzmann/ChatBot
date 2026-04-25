@@ -59,20 +59,7 @@ public class BotService {
         if ("error".equals(usuario.getTempData())) {
             response.append("❌ Opción inválida, intenta nuevamente\n\n");
 
-            // 👉 limpiar error después de mostrarlo
             usuario.setTempData(null);
-        }
-
-        if (estado.getType().name().equals("MENU")) {
-
-            var opciones = botOpcionService.obtenerOpciones(estado);
-
-            for (var op : opciones) {
-                response.append(op.getOptionKey())
-                        .append("️⃣ ")
-                        .append(op.getDescription())
-                        .append("\n");
-            }
         }
 
         return response.toString();
