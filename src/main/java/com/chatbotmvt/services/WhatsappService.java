@@ -34,7 +34,7 @@ public class WhatsappService {
                 "type", "template",
                 "template", Map.of(
                         "name", "saludo",
-                        "language", Map.of("code", "es")
+                        "language", Map.of("code", "es_AR")
                 )
         );
 
