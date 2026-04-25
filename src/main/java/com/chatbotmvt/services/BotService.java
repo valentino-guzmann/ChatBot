@@ -1,117 +1,79 @@
 package com.chatbotmvt.services;
 
-import com.chatbotmvt.entity.TipoEstado;
-import com.chatbotmvt.repository.UsuarioRepository;
+import com.chatbotmvt.entity.BotState;
+import com.chatbotmvt.entity.MessageLog;
+import com.chatbotmvt.entity.UsuarioSesion;
+import com.chatbotmvt.handlers.InputHandler;
+import com.chatbotmvt.handlers.MenuHandler;
+import com.chatbotmvt.repository.MessageLogRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class BotService {
 
-    private final UsuarioService usuarioService;
-    private final WhatsappService whatsappService;
+    private final UsuarioSesionService usuarioSesionService;
+    private final MenuHandler menuHandler;
+    private final InputHandler inputHandler;
     private final BotOpcionService botOpcionService;
-    private final UsuarioRepository usuarioRepository;
+    private final MessageLogRepository messageLogRepository;
 
-    public void processMessage(String phone, String message) {
+    public String procesarMensaje(String phone, String message) {
+        UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-        log.info("📩 [BOT] Mensaje recibido -> phone: {}, message: {}", phone, message);
+        log(phone, message, "IN", sesion.getCurrentState().getName());
 
-        var usuarioOpt = usuarioRepository.findByPhone(phone);
-        boolean esNuevo = usuarioOpt.isEmpty();
+        var estado = sesion.getCurrentState();
 
-        var usuario = usuarioOpt.orElseGet(() -> usuarioService.obtenerOCrearUsuario(phone));
+        String input = message == null ? "" : message.trim();
 
-        var estadoActual = usuario.getCurrentState();
+        if (estado.getType().name().equals("MENU")) {
 
-        if (estadoActual == null || estadoActual.getType() == null) {
-            log.error("💥 Estado inválido en BD");
-            whatsappService.sendMessage(phone, "⚠️ Error interno");
-            return;
+            menuHandler.handle(sesion, input);
+
+        } else if (estado.getType().name().equals("INPUT")) {
+
+            inputHandler.handle(sesion, input);
         }
 
-        log.info("👤 Usuario -> id: {}, estado: {}", usuario.getId(), estadoActual.getType());
+        usuarioSesionService.save(sesion);
 
-        // 🆕 USUARIO NUEVO → mostrar menú directamente
-        if (esNuevo) {
-            log.info("🆕 Usuario nuevo → enviando menú");
-            whatsappService.sendMessage(phone, estadoActual.getMessage());
-            return;
-        }
+        var nuevoEstado = sesion.getCurrentState();
 
-        // Validación básica
-        if (message == null || message.isBlank()) {
-            whatsappService.sendMessage(phone, "No entendí tu mensaje 🤔");
-            return;
-        }
+        String response = construirRespuesta(nuevoEstado);
+        log(phone, response, "OUT", nuevoEstado.getName());
 
-        message = message.trim();
+        return response;
+    }
 
-        // 👋 SALUDO
-        if (isGreeting(message)) {
-            log.info("👋 Saludo detectado");
-            whatsappService.sendSaludoTemplate(phone);
-            return;
-        }
+    private String construirRespuesta(BotState estado) {
+        StringBuilder response = new StringBuilder();
 
-        // 🧠 MENU
-        if (estadoActual.getType() == TipoEstado.MENU) {
+        response.append(estado.getMessage()).append("\n\n");
 
-            var opcion = botOpcionService.obtenerEstadoYOpcion(estadoActual, message);
+        if (estado.getType().name().equals("MENU")) {
 
-            if (opcion.isPresent()) {
+            var opciones = botOpcionService.obtenerOpciones(estado);
 
-                var nextState = opcion.get().getNextState();
-
-                log.info("➡️ Cambio de estado: {} -> {}",
-                        estadoActual.getType(),
-                        nextState.getType());
-
-                usuario.setCurrentState(nextState);
-                usuarioRepository.save(usuario);
-
-                whatsappService.sendMessage(phone, nextState.getMessage());
-
-            } else {
-                whatsappService.sendMessage(phone, "❌ Opción inválida, intenta nuevamente");
+            for (var op : opciones) {
+                response.append(op.getOptionKey())
+                        .append("️⃣ ")
+                        .append(op.getDescription())
+                        .append("\n");
             }
-
         }
-        // ✍️ INPUT
-        else if (estadoActual.getType() == TipoEstado.INPUT) {
-
-            log.info("⌨️ INPUT recibido: {}", message);
-
-            // 👉 acá después podés guardar en DB
-            whatsappService.sendMessage(phone,
-                    "✅ Reclamo recibido. Lo derivamos al área correspondiente.");
-
-            // 🔙 volver al menú principal (ID 1)
-            usuario.setCurrentState(usuarioService.obtenerEstadoPorId(1L));
-            usuarioRepository.save(usuario);
-        }
-        else {
-            log.error("💥 Estado desconocido: {}", estadoActual.getType());
-            whatsappService.sendMessage(phone, "⚠️ Error interno");
-        }
+        return response.toString();
     }
 
-    private boolean isGreeting(String message) {
-        String msg = normalize(message);
+    private void log(String phone, String message, String dir, String state) {
 
-        return msg.contains("hola")
-                || msg.contains("buenas")
-                || msg.contains("hi")
-                || msg.contains("hello");
-    }
+        MessageLog log = new MessageLog();
+        log.setPhone(phone);
+        log.setMessage(message);
+        log.setDirection(MessageLog.MessageDirection.valueOf(dir));
+        log.setStateName(state);
 
-    private String normalize(String input) {
-        return input.toLowerCase()
-                .replaceAll("[^a-záéíóúñ ]", "")
-                .replaceAll("(.)\\1{2,}", "$1$1")
-                .trim();
+        messageLogRepository.save(log);
     }
 }

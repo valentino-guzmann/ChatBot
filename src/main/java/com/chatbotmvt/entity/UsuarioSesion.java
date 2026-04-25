@@ -14,10 +14,12 @@ import java.time.LocalDateTime;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Usuario {
+public class UsuarioSesion {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
     private String phone;
 
     @ManyToOne
@@ -25,11 +27,22 @@ public class Usuario {
     private BotState currentState;
 
     private String sector;
+
+    private Integer step;
+
+    @Lob
+    private String tempData;
+
     private LocalDateTime created_at;
     private LocalDateTime updated_at;
 
     @PrePersist
     public void prePersist() {
         this.created_at = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updated_at = LocalDateTime.now();
     }
 }

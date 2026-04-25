@@ -6,6 +6,7 @@ import com.chatbotmvt.repository.BotOpcionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -15,5 +16,9 @@ public class BotOpcionService {
 
     public Optional<BotOpcion> obtenerEstadoYOpcion(BotState estadoActual, String message) {
         return botOpcionRepository.findByStateAndOptionKey(estadoActual, message);
+    }
+
+    public List<BotOpcion> obtenerOpciones(BotState estado) {
+        return botOpcionRepository.findByStateOrderByOptionKeyAsc(estado);
     }
 }

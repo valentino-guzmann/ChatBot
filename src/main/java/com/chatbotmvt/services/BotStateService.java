@@ -2,6 +2,7 @@ package com.chatbotmvt.services;
 
 import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.Usuario;
+import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.repository.BotStateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -17,11 +18,11 @@ public class BotStateService {
                 .orElseThrow(() -> new RuntimeException("Estado MENU no encontrado"));
     }
 
-    public Usuario crearUsuario(String phone) {
+    public UsuarioSesion crearUsuario(String phone) {
 
         BotState estadoActual = getMenuState();
 
-        Usuario nuevoUsuario = new Usuario();
+        var nuevoUsuario = new UsuarioSesion();
         nuevoUsuario.setPhone(phone);
         nuevoUsuario.setCurrentState(estadoActual);
 

@@ -3,6 +3,7 @@ package com.chatbotmvt.controller;
 import com.chatbotmvt.dto.MessageReceived;
 import com.chatbotmvt.dto.WebhookRequest;
 import com.chatbotmvt.services.BotService;
+import com.chatbotmvt.services.WhatsappService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +16,7 @@ import java.util.Optional;
 public class WebhookController {
 
     private final BotService botService;
+    private final WhatsappService whatsappService;
 
     @GetMapping
     public ResponseEntity<String> verifyWebhook(
@@ -33,33 +35,25 @@ public class WebhookController {
     @PostMapping
     public ResponseEntity<Void> receiveMessage(@RequestBody WebhookRequest request) {
 
-        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        System.out.println("📡 WEBHOOK RECIBIDO");
-        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
         var messageOpt = extractMessage(request);
 
-        if (messageOpt.isEmpty()) {
-            System.out.println("❌ No se encontró mensaje en payload");
-            return ResponseEntity.ok().build();
-        }
+        if (messageOpt.isEmpty()) return ResponseEntity.ok().build();
 
         var msg = messageOpt.get();
 
         if (msg.text() == null || msg.text().body() == null) {
-            System.out.println("⚠️ Mensaje sin texto válido");
             return ResponseEntity.ok().build();
         }
-
-        System.out.println("📨 FROM: " + msg.from());
-        System.out.println("💬 BODY: " + msg.text().body());
-
         try {
-            botService.processMessage(msg.from(), msg.text().body());
-        } catch (Exception e) {
-            System.err.println("❌ ERROR EN BOT: " + e.getMessage());
-        }
 
+            String response = botService.procesarMensaje(
+                    msg.from(),
+                    msg.text().body()
+            );
+            whatsappService.sendMessage(msg.from(), response);
+        } catch (Exception e) {
+            System.err.println("❌ ERROR: " + e.getMessage());
+        }
         return ResponseEntity.ok().build();
     }
 
