@@ -22,70 +22,74 @@ public class BotService {
 
         var usuario = usuarioService.obtenerOCrearUsuario(phone);
 
-        log.info("👤 [BOT] Usuario encontrado/creado -> id: {}, estado actual: {}",
-                usuario.getId(),
-                usuario.getCurrentState().getType());
-
         var estadoActual = usuario.getCurrentState();
+
+        if (estadoActual == null || estadoActual.getType() == null) {
+            log.error("💥 [BOT] Estado inválido en BD");
+
+            whatsappService.sendMessage(phone, "⚠️ Error interno, intenta nuevamente");
+            return;
+        }
+
+        log.info("👤 [BOT] Usuario -> id: {}, estado: {}",
+                usuario.getId(),
+                estadoActual.getType());
 
         // Validación básica
         if (message == null || message.isBlank()) {
-            log.warn("⚠️ [BOT] Mensaje vacío o null");
-            whatsappService.sendMessage(phone, "No entendí tu mensaje 🤔, intentalo de nuevo");
+            whatsappService.sendMessage(phone, "No entendí tu mensaje 🤔");
             return;
         }
 
         message = message.trim();
-        log.debug("✂️ [BOT] Mensaje normalizado: {}", message);
 
-        // 👋 DETECCIÓN DE SALUDO (robusta)
+        // 👋 SALUDO
         if (isGreeting(message)) {
-            log.info("👋 [BOT] Saludo detectado");
-
+            log.info("👋 Saludo detectado");
             whatsappService.sendSaludoTemplate(phone);
-
-            return; // 🔥 corta flujo
+            return;
         }
 
-        // 🧠 LÓGICA PRINCIPAL
+        // 🧠 MENU
         if (estadoActual.getType() == TipoEstado.MENU) {
 
-            log.info("📌 [BOT] Estado MENU detectado");
-
             var opcion = botOpcionService.obtenerEstadoYOpcion(estadoActual, message);
-
-            log.debug("🔎 [BOT] Opción encontrada: {}", opcion.isPresent());
 
             if (opcion.isPresent()) {
 
                 var nextState = opcion.get().getNextState();
 
-                log.info("➡️ [BOT] Cambio de estado: {} -> {}",
-                        estadoActual.getType(),
-                        nextState.getType());
-
                 usuario.setCurrentState(nextState);
                 usuarioRepository.save(usuario);
 
-                log.info("💾 [BOT] Usuario actualizado en BD");
-
                 whatsappService.sendMessage(phone, nextState.getMessage());
 
-                log.info("📤 [BOT] Mensaje enviado: {}", nextState.getMessage());
-
             } else {
-                log.warn("❌ [BOT] Opción inválida: {}", message);
                 whatsappService.sendMessage(phone, "❌ Opción inválida, intenta nuevamente");
             }
 
-        } else if (estadoActual.getType() == TipoEstado.INPUT) {
+        }
+        // ✍️ INPUT (tu nuevo flujo)
+        else if (estadoActual.getType() == TipoEstado.INPUT) {
 
-            log.info("⌨️ [BOT] Estado INPUT (pendiente implementación)");
-            // futura lógica (ej: reclamos, formularios, etc)
+            log.info("⌨️ [BOT] INPUT recibido: {}", message);
 
-        } else {
-            log.error("💥 [BOT] Estado desconocido: {}", estadoActual.getType());
-            whatsappService.sendMessage(phone, "⚠️ Error interno, intenta nuevamente");
+            // 🔥 ACA GUARDÁS EL RECLAMO (lo dejamos simple por ahora)
+            whatsappService.sendMessage(phone,
+                    "✅ Reclamo recibido. Lo derivamos al área correspondiente.");
+
+            // 👇 opcional: volver al menú
+            usuario.setCurrentState(
+                    usuario.getCurrentState().getId() == 16
+                            ? usuarioService.obtenerEstadoPorId(1L) // MENU principal
+                            : estadoActual
+            );
+
+            usuarioRepository.save(usuario);
+        }
+        else {
+            log.error("💥 Estado desconocido: {}", estadoActual.getType());
+            whatsappService.sendMessage(phone, "⚠️ Error interno");
         }
     }
 

@@ -23,6 +23,7 @@ public class WhatsappService {
     @Value("${access.token}")
     private String accessToken;
 
+    // 👋 TEMPLATE
     public void sendSaludoTemplate(String phone) {
 
         phone = formatPhone(phone);
@@ -33,38 +34,17 @@ public class WhatsappService {
                 "type", "template",
                 "template", Map.of(
                         "name", "saludo",
-                        "language", Map.of("code", "es") // o es_AR si corresponde
+                        "language", Map.of("code", "es")
                 )
         );
 
-        try {
-            restClient.post()
-                    .uri("/{phoneId}/messages", phoneNumberId)
-                    .header("Authorization", "Bearer " + accessToken)
-                    .body(request)
-                    .retrieve()
-                    .toBodilessEntity();
-
-            log.info("✅ Template saludo enviado");
-
-        } catch (Exception e) {
-            log.error("❌ Error enviando template saludo: {}", e.getMessage());
-        }
+        send(request);
     }
 
+    // 💬 TEXTO NORMAL
     public void sendMessage(String phone, String message) {
 
-        if (phone == null || phone.isBlank()) {
-            log.warn("⚠️ phone vacío");
-            return;
-        }
-
-        if (message == null || message.isBlank()) {
-            log.warn("⚠️ message vacío");
-            return;
-        }
-
-        log.info("📤 Enviando WhatsApp -> phone: {}, message: {}", phone, message);
+        phone = formatPhone(phone); // 🔥 FIX CLAVE
 
         var request = new SendMessageRequest(
                 "whatsapp",
@@ -73,18 +53,23 @@ public class WhatsappService {
                 new Text(message)
         );
 
+        send(request);
+    }
+
+    // 🔥 MÉTODO CENTRALIZADO
+    private void send(Object body) {
         try {
             restClient.post()
                     .uri("/{phoneId}/messages", phoneNumberId)
                     .header("Authorization", "Bearer " + accessToken)
-                    .body(request)
+                    .body(body)
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("✅ Mensaje enviado correctamente");
+            log.info("✅ Mensaje enviado");
 
         } catch (Exception e) {
-            log.error("❌ Error enviando WhatsApp message: {}", e.getMessage());
+            log.error("❌ Error WhatsApp: {}", e.getMessage());
         }
     }
 
