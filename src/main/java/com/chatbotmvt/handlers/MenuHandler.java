@@ -13,24 +13,26 @@ public class MenuHandler {
 
     private final BotOpcionService botOpcionService;
 
-    public void handle(UsuarioSesion sesion, String input) {
+    public void handle(UsuarioSesion sesion, String message) {
 
         var estado = sesion.getCurrentState();
 
-        var opcion = botOpcionService.obtenerEstadoYOpcion(estado, input);
+        var opcion = botOpcionService.obtenerEstadoYOpcion(estado, message);
 
         if (opcion.isPresent()) {
 
-            log.info("✅ Opción válida: {}", input);
-
+            log.info("✅ Opción válida [{}]", message);
             sesion.setCurrentState(opcion.get().getNextState());
-            sesion.setStep(0);
-            sesion.setTempData(null);
+            sesion.setTempData(null); // limpiar error
 
         } else {
-
-            log.warn("❌ Opción inválida: {}", input);
-            sesion.setTempData("error");
+            if (message.matches("\\d+")) {
+                log.warn("❌ Opción inválida numérica: {}", message);
+                sesion.setTempData("error");
+            } else {
+                log.info("💬 Texto libre ignorado: {}", message);
+                sesion.setTempData(null);
+            }
         }
     }
 }

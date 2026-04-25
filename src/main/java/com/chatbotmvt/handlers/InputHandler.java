@@ -18,6 +18,8 @@ public class InputHandler {
         var estado = sesion.getCurrentState();
         int step = sesion.getStep() == null ? 0 : sesion.getStep();
 
+        log.info("🧠 INPUT estado: {} | step: {}", estado.getName(), step);
+
         switch (estado.getName()) {
 
             case "INPUT_DESMALEZADO" -> handleDesmalezado(sesion, message, step);
@@ -29,12 +31,20 @@ public class InputHandler {
     private void handleDesmalezado(UsuarioSesion sesion, String message, int step) {
 
         if (message == null || message.isBlank()) {
-            sesion.setTempData("error");
+            log.warn("❌ Input vacío");
+            sesion.setTempData("error_input");
             return;
         }
 
-        // 📍 STEP 0 → dirección
+        message = message.trim();
+
         if (step == 0) {
+
+            if (message.length() < 5) {
+                log.warn("❌ Dirección muy corta");
+                sesion.setTempData("error_input");
+                return;
+            }
 
             log.info("📍 Guardando dirección: {}", message);
 
@@ -48,8 +58,13 @@ public class InputHandler {
             return;
         }
 
-        // 📌 STEP 1 → referencia
         if (step == 1) {
+
+            if (message.length() < 3) {
+                log.warn("❌ Referencia muy corta");
+                sesion.setTempData("error_input");
+                return;
+            }
 
             String direccion = sesion.getTempData();
             String referencia = message;

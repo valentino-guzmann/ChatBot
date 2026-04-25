@@ -25,8 +25,8 @@ public class BotService {
 
         UsuarioSesion usuario = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-        BotState estado = usuario.getCurrentState();
         String input = message == null ? "" : message.trim();
+        BotState estado = usuario.getCurrentState();
 
         log.info("👤 Usuario [{}] en estado: {}", phone, estado.getName());
 
@@ -38,7 +38,7 @@ public class BotService {
 
             usuarioSesionService.save(usuario);
 
-            return construirRespuesta(usuario);
+            return construirRespuesta(usuario, usuario.getCurrentState());
         }
 
         if (estado.getName().equals("CONFIRMACION")) {
@@ -49,10 +49,7 @@ public class BotService {
 
                 usuario.setTempData(null);
                 usuario.setStep(0);
-
-                usuario.setCurrentState(
-                        usuarioSesionService.obtenerEstadoInicial()
-                );
+                usuario.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
 
             } else if (input.equals("2")) {
 
@@ -60,13 +57,16 @@ public class BotService {
 
                 usuario.setTempData(null);
                 usuario.setStep(0);
-
                 usuario.setCurrentState(
                         botStateService.findByName("INPUT_DESMALEZADO")
                 );
             }
+
+            usuarioSesionService.save(usuario);
+            return construirRespuesta(usuario, usuario.getCurrentState());
         }
-        else if (estado.getType().name().equals("MENU")) {
+
+        if (estado.getType().name().equals("MENU")) {
 
             menuHandler.handle(usuario, input);
 
@@ -77,24 +77,33 @@ public class BotService {
 
         usuarioSesionService.save(usuario);
 
-        return construirRespuesta(usuario);
+        return construirRespuesta(usuario, usuario.getCurrentState());
     }
 
-    private String construirRespuesta(UsuarioSesion usuario) {
+    private String construirRespuesta(UsuarioSesion usuario, BotState estado) {
 
-        BotState estado = usuario.getCurrentState();
         StringBuilder response = new StringBuilder();
 
-        String mensaje = estado.getMessage();
-
-        if (mensaje.contains("{DATOS}") && usuario.getTempData() != null) {
-            mensaje = mensaje.replace("{DATOS}", usuario.getTempData());
-        }
-
-        response.append(mensaje).append("\n\n");
+        response.append(estado.getMessage()).append("\n\n");
 
         if ("error".equals(usuario.getTempData())) {
             response.append("❌ Opción inválida, intenta nuevamente\n\n");
+        }
+
+        if ("error_input".equals(usuario.getTempData())) {
+            response.append("❌ Ingresa un dato válido\n\n");
+        }
+
+        if (estado.getType().name().equals("MENU")) {
+
+            var opciones = botOpcionService.obtenerOpciones(estado);
+
+            for (var op : opciones) {
+                response.append(op.getOptionKey())
+                        .append("️⃣ ")
+                        .append(op.getDescription())
+                        .append("\n");
+            }
         }
 
         return response.toString();
