@@ -13,7 +13,7 @@ public class BotStateService {
     private final BotStateRepository botStateRepository;
 
     public BotState getMenuState() {
-        return botStateRepository.findByName("MENU")
+        return botStateRepository.findByName("MENU_PRINCIPAL")
                 .orElseThrow(() -> new RuntimeException("Estado MENU no encontrado"));
     }
 
