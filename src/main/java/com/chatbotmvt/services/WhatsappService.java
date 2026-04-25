@@ -23,7 +23,7 @@ public class WhatsappService {
     @Value("${access.token}")
     private String accessToken;
 
-    // 👋 TEMPLATE
+    // 👋 TEMPLATE SALUDO
     public void sendSaludoTemplate(String phone) {
 
         phone = formatPhone(phone);
@@ -38,13 +38,28 @@ public class WhatsappService {
                 )
         );
 
-        send(request);
+        try {
+            restClient.post()
+                    .uri("/{phoneId}/messages", phoneNumberId)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .body(request)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info("✅ Template saludo enviado");
+
+        } catch (Exception e) {
+            log.error("❌ Error enviando template saludo: {}", e.getMessage());
+        }
     }
 
-    // 💬 TEXTO NORMAL
+    // 💬 MENSAJE NORMAL
     public void sendMessage(String phone, String message) {
 
-        phone = formatPhone(phone); // 🔥 FIX CLAVE
+        if (phone == null || phone.isBlank()) return;
+        if (message == null || message.isBlank()) return;
+
+        phone = formatPhone(phone);
 
         var request = new SendMessageRequest(
                 "whatsapp",
@@ -53,23 +68,18 @@ public class WhatsappService {
                 new Text(message)
         );
 
-        send(request);
-    }
-
-    // 🔥 MÉTODO CENTRALIZADO
-    private void send(Object body) {
         try {
             restClient.post()
                     .uri("/{phoneId}/messages", phoneNumberId)
                     .header("Authorization", "Bearer " + accessToken)
-                    .body(body)
+                    .body(request)
                     .retrieve()
                     .toBodilessEntity();
 
             log.info("✅ Mensaje enviado");
 
         } catch (Exception e) {
-            log.error("❌ Error WhatsApp: {}", e.getMessage());
+            log.error("❌ Error enviando mensaje: {}", e.getMessage());
         }
     }
 

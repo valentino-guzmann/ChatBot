@@ -10,16 +10,25 @@ import org.springframework.stereotype.Service;
 @Service
 @RequiredArgsConstructor
 public class UsuarioService {
+
     private final UsuarioRepository usuarioRepository;
-    private final BotStateService botStateService;
     private final BotStateRepository botStateRepository;
 
     public Usuario obtenerOCrearUsuario(String phone) {
         return usuarioRepository.findByPhone(phone)
-                .orElseGet(() -> {
-                    Usuario nuevoUsuario = botStateService.crearUsuario(phone);
-                    return usuarioRepository.save(nuevoUsuario);
-                });
+                .orElseGet(() -> crearUsuario(phone));
+    }
+
+    private Usuario crearUsuario(String phone) {
+
+        BotState estadoInicial = botStateRepository.findById(1L)
+                .orElseThrow(() -> new RuntimeException("Estado MENU_PRINCIPAL no encontrado"));
+
+        Usuario usuario = new Usuario();
+        usuario.setPhone(phone);
+        usuario.setCurrentState(estadoInicial);
+
+        return usuarioRepository.save(usuario);
     }
 
     public BotState obtenerEstadoPorId(Long id) {

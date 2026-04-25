@@ -20,20 +20,27 @@ public class BotService {
 
         log.info("📩 [BOT] Mensaje recibido -> phone: {}, message: {}", phone, message);
 
-        var usuario = usuarioService.obtenerOCrearUsuario(phone);
+        var usuarioOpt = usuarioRepository.findByPhone(phone);
+        boolean esNuevo = usuarioOpt.isEmpty();
+
+        var usuario = usuarioOpt.orElseGet(() -> usuarioService.obtenerOCrearUsuario(phone));
 
         var estadoActual = usuario.getCurrentState();
 
         if (estadoActual == null || estadoActual.getType() == null) {
-            log.error("💥 [BOT] Estado inválido en BD");
-
-            whatsappService.sendMessage(phone, "⚠️ Error interno, intenta nuevamente");
+            log.error("💥 Estado inválido en BD");
+            whatsappService.sendMessage(phone, "⚠️ Error interno");
             return;
         }
 
-        log.info("👤 [BOT] Usuario -> id: {}, estado: {}",
-                usuario.getId(),
-                estadoActual.getType());
+        log.info("👤 Usuario -> id: {}, estado: {}", usuario.getId(), estadoActual.getType());
+
+        // 🆕 USUARIO NUEVO → mostrar menú directamente
+        if (esNuevo) {
+            log.info("🆕 Usuario nuevo → enviando menú");
+            whatsappService.sendMessage(phone, estadoActual.getMessage());
+            return;
+        }
 
         // Validación básica
         if (message == null || message.isBlank()) {
@@ -59,6 +66,10 @@ public class BotService {
 
                 var nextState = opcion.get().getNextState();
 
+                log.info("➡️ Cambio de estado: {} -> {}",
+                        estadoActual.getType(),
+                        nextState.getType());
+
                 usuario.setCurrentState(nextState);
                 usuarioRepository.save(usuario);
 
@@ -69,22 +80,17 @@ public class BotService {
             }
 
         }
-        // ✍️ INPUT (tu nuevo flujo)
+        // ✍️ INPUT
         else if (estadoActual.getType() == TipoEstado.INPUT) {
 
-            log.info("⌨️ [BOT] INPUT recibido: {}", message);
+            log.info("⌨️ INPUT recibido: {}", message);
 
-            // 🔥 ACA GUARDÁS EL RECLAMO (lo dejamos simple por ahora)
+            // 👉 acá después podés guardar en DB
             whatsappService.sendMessage(phone,
                     "✅ Reclamo recibido. Lo derivamos al área correspondiente.");
 
-            // 👇 opcional: volver al menú
-            usuario.setCurrentState(
-                    usuario.getCurrentState().getId() == 16
-                            ? usuarioService.obtenerEstadoPorId(1L) // MENU principal
-                            : estadoActual
-            );
-
+            // 🔙 volver al menú principal (ID 1)
+            usuario.setCurrentState(usuarioService.obtenerEstadoPorId(1L));
             usuarioRepository.save(usuario);
         }
         else {
@@ -96,10 +102,10 @@ public class BotService {
     private boolean isGreeting(String message) {
         String msg = normalize(message);
 
-        return msg.startsWith("hola")
-                || msg.startsWith("buenas")
-                || msg.startsWith("hi")
-                || msg.startsWith("hello");
+        return msg.contains("hola")
+                || msg.contains("buenas")
+                || msg.contains("hi")
+                || msg.contains("hello");
     }
 
     private String normalize(String input) {
