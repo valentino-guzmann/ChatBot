@@ -1,11 +1,8 @@
 package com.chatbotmvt.services;
 
 import com.chatbotmvt.entity.BotState;
-import com.chatbotmvt.entity.MessageLog;
-import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.handlers.InputHandler;
 import com.chatbotmvt.handlers.MenuHandler;
-import com.chatbotmvt.repository.MessageLogRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -17,37 +14,39 @@ public class BotService {
     private final MenuHandler menuHandler;
     private final InputHandler inputHandler;
     private final BotOpcionService botOpcionService;
-    private final MessageLogRepository messageLogRepository;
 
     public String procesarMensaje(String phone, String message) {
-        UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-        log(phone, message, "IN", sesion.getCurrentState().getName());
+        boolean esNuevo = false;
 
-        var estado = sesion.getCurrentState();
+        var existente = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
+        if (existente.getStep() == 0 && existente.getTempData() == null) {
+            esNuevo = true;
+        }
+
+        if (esNuevo) {
+            return null;
+        }
+
+        var estado = existente.getCurrentState();
         String input = message == null ? "" : message.trim();
 
         if (estado.getType().name().equals("MENU")) {
-
-            menuHandler.handle(sesion, input);
-
+            menuHandler.handle(existente, input);
         } else if (estado.getType().name().equals("INPUT")) {
-
-            inputHandler.handle(sesion, input);
+            inputHandler.handle(existente, input);
         }
 
-        usuarioSesionService.save(sesion);
+        usuarioSesionService.save(existente);
 
-        var nuevoEstado = sesion.getCurrentState();
+        var nuevoEstado = existente.getCurrentState();
 
-        String response = construirRespuesta(nuevoEstado);
-        log(phone, response, "OUT", nuevoEstado.getName());
-
-        return response;
+        return construirRespuesta(nuevoEstado);
     }
 
     private String construirRespuesta(BotState estado) {
+
         StringBuilder response = new StringBuilder();
 
         response.append(estado.getMessage()).append("\n\n");
@@ -63,17 +62,7 @@ public class BotService {
                         .append("\n");
             }
         }
+
         return response.toString();
-    }
-
-    private void log(String phone, String message, String dir, String state) {
-
-        MessageLog log = new MessageLog();
-        log.setPhone(phone);
-        log.setMessage(message);
-        log.setDirection(MessageLog.MessageDirection.valueOf(dir));
-        log.setStateName(state);
-
-        messageLogRepository.save(log);
     }
 }

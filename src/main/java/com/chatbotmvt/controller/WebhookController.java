@@ -44,16 +44,21 @@ public class WebhookController {
         if (msg.text() == null || msg.text().body() == null) {
             return ResponseEntity.ok().build();
         }
-        try {
 
+        try {
             String response = botService.procesarMensaje(
                     msg.from(),
                     msg.text().body()
             );
-            whatsappService.sendMessage(msg.from(), response);
+
+            if (response != null) {
+                whatsappService.sendMessage(msg.from(), response);
+            }
+
         } catch (Exception e) {
             System.err.println("❌ ERROR: " + e.getMessage());
         }
+
         return ResponseEntity.ok().build();
     }
 
