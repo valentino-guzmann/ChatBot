@@ -5,39 +5,91 @@ import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.handlers.MenuHandler;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class BotService {
 
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
     private final ReclamoService reclamoService;
-    private final BotFlowRuleService flowService;
+    private final BotFlowRuleService botFlowRuleService;
 
     public String procesarMensaje(String phone, String message) {
 
-        UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+        UsuarioSesion sesion =
+                usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+
+        String input = message == null ? "" : message.trim();
+
+        log.info("📩 Mensaje de [{}]: {}", phone, input);
+
+        if (input.equalsIgnoreCase("menu") || input.equals("0")) {
+
+            log.info("🔄 Reset a menú principal");
+
+            sesion.setCurrentState(
+                    usuarioSesionService.obtenerEstadoInicial()
+            );
+
+            sesion.setTempData(null);
+
+            usuarioSesionService.save(sesion);
+
+            return sesion.getCurrentState().getMessage();
+        }
 
         BotState estado = sesion.getCurrentState();
 
         Optional<BotFlowRule> rule =
-                flowService.find(estado, message);
+                botFlowRuleService.find(estado, input);
 
         if (rule.isPresent()) {
 
             BotFlowRule r = rule.get();
 
+            log.info("⚙️ FlowRule encontrada: {}", r.getInputPattern());
+
             sesion.setCurrentState(r.getNextState());
 
-            executeAction(r, sesion, message);
+            switch (r.getActionType()) {
+
+                case "SET_TYPE":
+                    sesion.setTempData(r.getActionValue() + "|");
+                    break;
+
+                case "APPEND_TEXT":
+                    sesion.setTempData(
+                            sesion.getTempData() == null
+                                    ? input
+                                    : sesion.getTempData() + input
+                    );
+                    break;
+
+                case "CREATE_RECLAMO":
+                    String[] parts = sesion.getTempData() != null
+                            ? sesion.getTempData().split("\\|")
+                            : new String[]{"SIN_TIPO", "SIN_DATA"};
+
+                    reclamoService.crearReclamo(
+                            sesion.getPhone(),
+                            parts[0],
+                            parts.length > 1 ? parts[1] : ""
+                    );
+                    break;
+
+                case "RESET":
+                    sesion.setTempData(null);
+                    break;
+            }
 
         } else {
-
-            menuHandler.handle(sesion, message);
+            menuHandler.handle(sesion, input);
         }
 
         usuarioSesionService.save(sesion);
