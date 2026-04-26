@@ -27,9 +27,7 @@ public class UsuarioSesion {
     private BotState currentState;
 
     private String sector;
-
-    private Integer step;
-
+    
     @Lob
     private String tempData;
 

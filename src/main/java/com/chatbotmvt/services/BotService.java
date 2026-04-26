@@ -1,99 +1,79 @@
 package com.chatbotmvt.services;
 
+import com.chatbotmvt.entity.BotFlowRule;
 import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
-import com.chatbotmvt.handlers.InputHandler;
 import com.chatbotmvt.handlers.MenuHandler;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
-@Slf4j
 @RequiredArgsConstructor
 public class BotService {
 
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
-    private final InputHandler inputHandler;
-    private final BotOpcionService botOpcionService;
-    private final BotStateService botStateService;
+    private final ReclamoService reclamoService;
+    private final BotFlowRuleService flowService;
 
     public String procesarMensaje(String phone, String message) {
 
-        log.info("📩 Mensaje recibido de [{}]: {}", phone, message);
+        UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-        UsuarioSesion usuario = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+        BotState estado = sesion.getCurrentState();
 
-        String input = message == null ? "" : message.trim();
-        BotState estado = usuario.getCurrentState();
+        Optional<BotFlowRule> rule =
+                flowService.find(estado, message);
 
-        log.info("👤 Usuario [{}] en estado: {}", phone, estado.getName());
+        if (rule.isPresent()) {
 
-        if (input.equalsIgnoreCase("menu")) {
+            BotFlowRule r = rule.get();
 
-            usuario.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
-            usuario.setStep(0);
-            usuario.setTempData(null);
+            sesion.setCurrentState(r.getNextState());
 
-            usuarioSesionService.save(usuario);
+            executeAction(r, sesion, message);
 
-            return construirRespuesta(usuario, usuario.getCurrentState());
+        } else {
+
+            menuHandler.handle(sesion, message);
         }
 
-        if (estado.getName().equals("CONFIRMACION")) {
+        usuarioSesionService.save(sesion);
 
-            if (input.equals("1")) {
-
-                log.info("✅ Confirmado: {}", usuario.getTempData());
-
-                usuario.setTempData(null);
-                usuario.setStep(0);
-                usuario.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
-
-            } else if (input.equals("2")) {
-
-                log.info("🔄 Reingresar datos");
-
-                usuario.setTempData(null);
-                usuario.setStep(0);
-                usuario.setCurrentState(
-                        botStateService.findByName("INPUT_DESMALEZADO")
-                );
-            }
-
-            usuarioSesionService.save(usuario);
-            return construirRespuesta(usuario, usuario.getCurrentState());
-        }
-
-        if (estado.getType().name().equals("MENU")) {
-
-            menuHandler.handle(usuario, input);
-
-        } else if (estado.getType().name().equals("INPUT")) {
-
-            inputHandler.handle(usuario, input);
-        }
-
-        usuarioSesionService.save(usuario);
-
-        return construirRespuesta(usuario, usuario.getCurrentState());
+        return sesion.getCurrentState().getMessage();
     }
 
-    private String construirRespuesta(UsuarioSesion usuario, BotState estado) {
+    private void executeAction(BotFlowRule r,
+                               UsuarioSesion sesion,
+                               String message) {
 
-        StringBuilder response = new StringBuilder();
+        switch (r.getActionType()) {
 
-        response.append(estado.getMessage()).append("\n\n");
+            case "SET_TYPE":
+                sesion.setTempData(r.getActionValue() + "|");
+                break;
 
-        if ("error".equals(usuario.getTempData())) {
-            response.append("❌ Opción inválida, intenta nuevamente\n\n");
+            case "APPEND_TEXT":
+                sesion.setTempData(sesion.getTempData() + message);
+                break;
+
+            case "CREATE_RECLAMO":
+
+                String[] parts = sesion.getTempData().split("\\|");
+
+                reclamoService.crearReclamo(
+                        sesion.getPhone(),
+                        parts[0],
+                        parts[1]
+                );
+                break;
+
+            case "RESET":
+                sesion.setTempData(null);
+                sesion.setStep(0);
+                break;
         }
-
-        if ("error_input".equals(usuario.getTempData())) {
-            response.append("❌ Ingresa un dato válido\n\n");
-        }
-
-        return response.toString();
     }
 }

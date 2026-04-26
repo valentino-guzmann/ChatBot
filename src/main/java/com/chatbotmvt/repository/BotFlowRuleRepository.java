@@ -1,4 +1,14 @@
 package com.chatbotmvt.repository;
 
-public class BotFlowRuleRepository {
+import com.chatbotmvt.entity.BotFlowRule;
+import com.chatbotmvt.entity.BotState;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.Optional;
+
+public interface BotFlowRuleRepository extends JpaRepository<BotFlowRule, Long> {
+
+    Optional<BotFlowRule> findByStateAndInputPattern(BotState state, String inputPattern);
+
+    Optional<BotFlowRule> findByStateAndInputPatternOrInputPattern(BotState state, String input, String fallback);
 }
