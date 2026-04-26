@@ -25,7 +25,6 @@ public class UsuarioSesionService {
                     UsuarioSesion nueva = new UsuarioSesion();
                     nueva.setPhone(phone);
                     nueva.setCurrentState(estadoInicial);
-                    nueva.setStep(0);
                     nueva.setTempData(null);
 
                     return usuarioSesionRepository.save(nueva);

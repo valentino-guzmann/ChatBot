@@ -72,7 +72,6 @@ public class BotService {
 
             case "RESET":
                 sesion.setTempData(null);
-                sesion.setStep(0);
                 break;
         }
     }
