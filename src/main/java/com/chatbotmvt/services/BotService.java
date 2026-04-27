@@ -69,18 +69,16 @@ public class BotService {
                     break;
 
                 case "CONFIRM_SECTOR":
+
                     String temp = sesion.getTempData();
 
                     if (temp != null && temp.startsWith("SECTOR|")) {
 
-                        Long sectorIdConfirmado =
-                                Long.valueOf(temp.split("\\|")[1]);
+                        Long sectorIdConfirmado = Long.parseLong(temp.split("\\|")[1]);
 
-                        var sectorConfirmado =
-                                sectorService.findById(sectorIdConfirmado);
+                        var sector = sectorService.findById(sectorIdConfirmado);
 
-                        sesion.setSector(sectorConfirmado);
-                        usuarioSesionService.save(sesion);
+                        sesion.setSector(sector);
                     }
 
                     sesion.setTempData(null);
