@@ -49,11 +49,13 @@ public class BotService {
                 case "SET_TYPE":
                     String tipo = r.getActionValue().trim().toUpperCase();
 
-                    if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS") ||
-                            tipo.equals("DESMALEZADO") || tipo.equals("BARRIDO"))) {
+                    boolean requiereZona = tipo.equals("RIEGO") || tipo.equals("ESCOMBROS") ||
+                            tipo.equals("DESMALEZADO") || tipo.equals("BARRIDO") ||
+                            tipo.equals("ALUMBRADO") || tipo.equals("ARBOLADO") ||
+                            tipo.equals("BACHEO") || tipo.equals("TRANSITO");
 
+                    if (sesion.getSector() == null && requiereZona) {
                         sesion.setTempData("PENDIENTE_" + tipo + "|");
-
                         BotState elegirZona = botStateRepository.findById(14L).get();
                         sesion.setCurrentState(elegirZona);
                         usuarioSesionService.save(sesion);
@@ -141,12 +143,11 @@ public class BotService {
                             case "RIEGO" -> 30L;
                             case "ESCOMBROS" -> 31L;
                             case "BOLSONES/DESPERDICIOS" -> 23L;
+                            case "ALUMBRADO", "ARBOLADO", "BACHEO", "TRANSITO" -> 27L; // Todos van al 27
                             default -> 4L;
                         };
                         sesion.setCurrentState(botStateRepository.findById(nextId).get());
                         sesion.setTempData(tipoActual + "|");
-                    } else {
-                        sesion.setTempData(null);
                     }
                     break;
             }
