@@ -80,6 +80,7 @@ public class BotService {
                                 sectorService.findById(sectorIdConfirmado);
 
                         sesion.setSector(sectorConfirmado);
+                        usuarioSesionService.save(sesion);
                     }
 
                     sesion.setTempData(null);
