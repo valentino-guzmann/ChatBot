@@ -73,13 +73,15 @@ public class BotService {
                         var sector = sectorService.findById(sectorIdConfirmado);
 
                         sesion.setSector(sector);
-                        sesion.setCurrentState(r.getNextState()); // Nos mueve al estado 21
+                        sesion.setCurrentState(r.getNextState());
 
                         if (sector.getImageUrl() != null && !sector.getImageUrl().isEmpty()) {
                             whatsappService.sendImage(sesion.getPhone(), sector.getImageUrl());
                         }
 
-                        // Reemplazamos los datos en el mensaje del estado
+                        log.info("DEBUG: Sector ID: {}, Nombre: {}, Link: {}",
+                                sector.getId(), sector.getName(), sector.getCalendarLink());
+
                         String mensajeBase = sesion.getCurrentState().getMessage();
                         customResponse = mensajeBase
                                 .replace("{nombre}", sector.getName())
