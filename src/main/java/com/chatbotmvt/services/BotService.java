@@ -29,7 +29,6 @@ public class BotService {
 
         UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
         BotState estado = sesion.getCurrentState();
-
         String input = message == null ? "" : message.trim();
 
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
@@ -39,48 +38,57 @@ public class BotService {
             return sesion.getCurrentState().getMessage();
         }
 
-        String customResponse = null;
-
         Optional<BotFlowRule> rule = botFlowRuleService.find(estado, input);
 
         if (rule.isPresent()) {
             BotFlowRule r = rule.get();
             sesion.setCurrentState(r.getNextState());
 
-            log.info("⚙️ Ejecutando Acción: {} para el input: {}", r.getActionType(), input);
-
             switch (r.getActionType()) {
                 case "SET_TYPE":
-                    sesion.setTempData(r.getActionValue() + "|");
+                    String tipo = r.getActionValue();
+                    if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS"))) {
+                        sesion.setTempData("PENDIENTE_" + tipo + "|");
+                        BotState elegirZona = botStateRepository.findById(14L).get();
+                        sesion.setCurrentState(elegirZona);
+                        return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
+                    }
+                    sesion.setTempData(tipo + "|");
                     break;
 
                 case "APPEND_TEXT":
-                    sesion.setTempData((sesion.getTempData() == null ? "" : sesion.getTempData()) + input + " ");
+                    String data = sesion.getTempData() == null ? "" : sesion.getTempData();
+                    sesion.setTempData(data + input + "|");
                     break;
 
                 case "SET_SECTOR":
                     Long sectorId = Long.valueOf(r.getActionValue());
-                    sesion.setTempData("SECTOR|" + sectorId);
+                    String previo = sesion.getTempData() != null ? sesion.getTempData() : "";
+                    sesion.setTempData(previo + "ZONA:" + sectorId + "|");
                     break;
 
                 case "CONFIRM_SECTOR":
                     String temp = sesion.getTempData();
-                    if (temp != null && temp.startsWith("SECTOR|")) {
-                        Long sectorIdConfirmado = Long.parseLong(temp.split("\\|")[1]);
-                        Sector sector = sectorService.findById(sectorIdConfirmado);
+                    if (temp != null && temp.contains("ZONA:")) {
+                        String idStr = temp.substring(temp.indexOf("ZONA:") + 5).split("\\|")[0];
+                        Sector sector = sectorService.findById(Long.parseLong(idStr));
+                        sesion.setSector(sector);
 
-                        sesion.setSector(sector); // Guardado permanente en la sesión
+                        if (temp.contains("PENDIENTE_RIEGO")) {
+                            sesion.setCurrentState(botStateRepository.findById(30L).get()); // Ir a pedir dirección Riego
+                            sesion.setTempData("RIEGO|");
+                        } else if (temp.contains("PENDIENTE_ESCOMBROS")) {
+                            sesion.setCurrentState(botStateRepository.findById(31L).get()); // Ir a pedir dirección Escombros
+                            sesion.setTempData("ESCOMBROS|");
+                        } else {
+                            sesion.setCurrentState(r.getNextState());
+                            sesion.setTempData(null);
+                        }
 
                         if (sector.getImageUrl() != null && !sector.getImageUrl().isEmpty()) {
                             whatsappService.sendImage(sesion.getPhone(), sector.getImageUrl());
                         }
                     }
-                    sesion.setTempData(null);
-                    break;
-
-                case "RESET_SECTOR":
-                    sesion.setSector(null);
-                    sesion.setTempData(null);
                     break;
 
                 case "CREATE_RECLAMO":
@@ -89,12 +97,15 @@ public class BotService {
                         reclamoService.crearReclamo(
                                 sesion.getPhone(),
                                 parts[0],
-                                parts.length > 1 ? parts[1] : "",
+                                (parts.length > 1 ? parts[1] : "") + " " + (parts.length > 2 ? parts[2] : ""),
                                 sesion.getSector()
                         );
                     }
+                    sesion.setTempData(null);
                     break;
 
+                case "RESET_SECTOR":
+                    sesion.setSector(null);
                 case "RESET":
                     sesion.setTempData(null);
                     break;
@@ -104,24 +115,17 @@ public class BotService {
         }
 
         if (sesion.getSector() != null && (sesion.getCurrentState().getId() == 8 || sesion.getCurrentState().getId() == 9)) {
-            BotState estadoExito = botStateRepository.findById(21L)
-                    .orElseThrow(() -> new RuntimeException("No existe estado de éxito 21"));
-            sesion.setCurrentState(estadoExito);
+            sesion.setCurrentState(botStateRepository.findById(21L).get());
         }
 
         usuarioSesionService.save(sesion);
 
-        String finalResponse = customResponse != null
-                ? customResponse
-                : sesion.getCurrentState().getMessage();
+        String finalResponse = sesion.getCurrentState().getMessage();
 
         if (sesion.getSector() != null) {
-            String nombre = sesion.getSector().getName() != null ? sesion.getSector().getName() : "";
-            String link = sesion.getSector().getCalendarLink() != null ? sesion.getSector().getCalendarLink() : "";
-
             finalResponse = finalResponse
-                    .replace("{nombre}", nombre)
-                    .replace("{link}", link);
+                    .replace("{nombre}", sesion.getSector().getName() != null ? sesion.getSector().getName() : "")
+                    .replace("{link}", sesion.getSector().getCalendarLink() != null ? sesion.getSector().getCalendarLink() : "");
         }
 
         return finalResponse;
