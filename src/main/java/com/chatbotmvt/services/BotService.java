@@ -52,8 +52,7 @@ public class BotService {
                     if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS") ||
                             tipo.equals("DESMALEZADO") || tipo.equals("BARRIDO"))) {
 
-                        String infoExtra = r.getInputPattern().equals("default") ? input + "|" : "";
-                        sesion.setTempData("PENDIENTE_" + tipo + "|" + infoExtra);
+                        sesion.setTempData("PENDIENTE_" + tipo + "|");
 
                         BotState elegirZona = botStateRepository.findById(14L).get();
                         sesion.setCurrentState(elegirZona);
@@ -61,7 +60,8 @@ public class BotService {
 
                         return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
                     }
-                    sesion.setTempData(tipo + "|" + (r.getInputPattern().equals("default") ? input + "|" : ""));
+
+                    sesion.setTempData(tipo + "|");
                     break;
 
                 case "APPEND_TEXT":
