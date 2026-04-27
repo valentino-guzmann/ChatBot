@@ -3,7 +3,9 @@ package com.chatbotmvt.services;
 import com.chatbotmvt.entity.BotFlowRule;
 import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
+import com.chatbotmvt.entity.Sector;
 import com.chatbotmvt.handlers.MenuHandler;
+import com.chatbotmvt.repository.BotStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ public class BotService {
     private final BotFlowRuleService botFlowRuleService;
     private final SectorService sectorService;
     private final WhatsappService whatsappService;
+    private final BotStateRepository botStateRepository;
 
     public String procesarMensaje(String phone, String message) {
 
@@ -32,8 +35,6 @@ public class BotService {
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
-            sesion.setSector(null);
-
             usuarioSesionService.save(sesion);
             return sesion.getCurrentState().getMessage();
         }
@@ -43,22 +44,18 @@ public class BotService {
         Optional<BotFlowRule> rule = botFlowRuleService.find(estado, input);
 
         if (rule.isPresent()) {
-
             BotFlowRule r = rule.get();
-
             sesion.setCurrentState(r.getNextState());
 
-            switch (r.getActionType()) {
+            log.info("⚙️ Ejecutando Acción: {} para el input: {}", r.getActionType(), input);
 
+            switch (r.getActionType()) {
                 case "SET_TYPE":
                     sesion.setTempData(r.getActionValue() + "|");
                     break;
 
                 case "APPEND_TEXT":
-                    sesion.setTempData(
-                            (sesion.getTempData() == null ? "" : sesion.getTempData())
-                                    + input + " "
-                    );
+                    sesion.setTempData((sesion.getTempData() == null ? "" : sesion.getTempData()) + input + " ");
                     break;
 
                 case "SET_SECTOR":
@@ -70,53 +67,63 @@ public class BotService {
                     String temp = sesion.getTempData();
                     if (temp != null && temp.startsWith("SECTOR|")) {
                         Long sectorIdConfirmado = Long.parseLong(temp.split("\\|")[1]);
-                        var sector = sectorService.findById(sectorIdConfirmado);
+                        Sector sector = sectorService.findById(sectorIdConfirmado);
 
-                        sesion.setSector(sector);
-                        sesion.setCurrentState(r.getNextState());
+                        sesion.setSector(sector); // Guardado permanente en la sesión
 
                         if (sector.getImageUrl() != null && !sector.getImageUrl().isEmpty()) {
                             whatsappService.sendImage(sesion.getPhone(), sector.getImageUrl());
                         }
-
-                        log.info("DEBUG: Sector ID: {}, Nombre: {}, Link: {}",
-                                sector.getId(), sector.getName(), sector.getCalendarLink());
-
-                        String mensajeBase = sesion.getCurrentState().getMessage();
-                        customResponse = mensajeBase
-                                .replace("{nombre}", sector.getName())
-                                .replace("{link}", sector.getCalendarLink());
                     }
                     sesion.setTempData(null);
                     break;
+
                 case "RESET_SECTOR":
                     sesion.setSector(null);
                     sesion.setTempData(null);
                     break;
 
                 case "CREATE_RECLAMO":
-                    String[] parts = sesion.getTempData().split("\\|");
-                    reclamoService.crearReclamo(
-                            sesion.getPhone(),
-                            parts[0],
-                            parts.length > 1 ? parts[1] : "",
-                            sesion.getSector()
-                    );
+                    if (sesion.getTempData() != null) {
+                        String[] parts = sesion.getTempData().split("\\|");
+                        reclamoService.crearReclamo(
+                                sesion.getPhone(),
+                                parts[0],
+                                parts.length > 1 ? parts[1] : "",
+                                sesion.getSector()
+                        );
+                    }
                     break;
 
                 case "RESET":
                     sesion.setTempData(null);
                     break;
             }
-
         } else {
             menuHandler.handle(sesion, input);
         }
 
+        if (sesion.getSector() != null && (sesion.getCurrentState().getId() == 8 || sesion.getCurrentState().getId() == 9)) {
+            BotState estadoExito = botStateRepository.findById(21L)
+                    .orElseThrow(() -> new RuntimeException("No existe estado de éxito 21"));
+            sesion.setCurrentState(estadoExito);
+        }
+
         usuarioSesionService.save(sesion);
 
-        return customResponse != null
+        String finalResponse = customResponse != null
                 ? customResponse
                 : sesion.getCurrentState().getMessage();
+
+        if (sesion.getSector() != null) {
+            String nombre = sesion.getSector().getName() != null ? sesion.getSector().getName() : "";
+            String link = sesion.getSector().getCalendarLink() != null ? sesion.getSector().getCalendarLink() : "";
+
+            finalResponse = finalResponse
+                    .replace("{nombre}", nombre)
+                    .replace("{link}", link);
+        }
+
+        return finalResponse;
     }
 }
