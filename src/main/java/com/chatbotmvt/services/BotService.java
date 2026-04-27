@@ -79,7 +79,7 @@ public class BotService {
                 case "CONFIRM_SECTOR":
                     String temp = sesion.getTempData();
                     if (temp != null && temp.contains("ZONA:")) {
-                        String idStr = temp.substring(temp.indexOf("ZONA:") + 5).split("\\|")[0];
+                        String idStr = temp.substring(temp.lastIndexOf("ZONA:") + 5).split("\\|")[0];
                         Sector sector = sectorService.findById(Long.parseLong(idStr));
                         sesion.setSector(sector);
 
@@ -142,7 +142,6 @@ public class BotService {
                             case "RIEGO" -> 30L;
                             case "ESCOMBROS" -> 31L;
                             case "BOLSONES/DESPERDICIOS" -> 23L;
-                            // Quitamos los otros tipos de aquí
                             default -> 4L;
                         };
                         sesion.setCurrentState(botStateRepository.findById(nextId).get());
