@@ -19,36 +19,31 @@ public class BotService {
     private final MenuHandler menuHandler;
     private final ReclamoService reclamoService;
     private final BotFlowRuleService botFlowRuleService;
+    private final SectorService sectorService;
 
     public String procesarMensaje(String phone, String message) {
 
-        log.info("📩 Mensaje recibido de [{}]: {}", phone, message);
-
         UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+        BotState estado = sesion.getCurrentState();
 
         String input = message == null ? "" : message.trim();
 
-        BotState estado = sesion.getCurrentState();
-
-        log.info("👤 Usuario [{}] en estado: {}", phone, estado.getName());
-
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
-
             sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
+            sesion.setSector(null);
 
             usuarioSesionService.save(sesion);
-
             return sesion.getCurrentState().getMessage();
         }
-        Optional<BotFlowRule> rule =
-                botFlowRuleService.find(estado, input);
+
+        String customResponse = null;
+
+        Optional<BotFlowRule> rule = botFlowRuleService.find(estado, input);
 
         if (rule.isPresent()) {
 
             BotFlowRule r = rule.get();
-
-            log.info("⚙️ Regla aplicada: {}", r.getActionType());
 
             sesion.setCurrentState(r.getNextState());
 
@@ -61,8 +56,25 @@ public class BotService {
                 case "APPEND_TEXT":
                     sesion.setTempData(
                             (sesion.getTempData() == null ? "" : sesion.getTempData())
-                                    + input
+                                    + input + " "
                     );
+                    break;
+
+                case "SET_SECTOR":
+                    Long sectorId = Long.valueOf(input);
+                    var sector = sectorService.findById(sectorId);
+
+                    sesion.setSector(sector);
+
+                    customResponse = sectorService.construirMensajeZona(sectorId);
+                    break;
+
+                case "CONFIRM_SECTOR":
+                    // no hace nada, solo sigue flujo
+                    break;
+
+                case "RESET_SECTOR":
+                    sesion.setSector(null);
                     break;
 
                 case "CREATE_RECLAMO":
@@ -74,12 +86,10 @@ public class BotService {
                             parts[0],
                             parts.length > 1 ? parts[1] : ""
                     );
-
                     break;
 
                 case "RESET":
                     sesion.setTempData(null);
-                    sesion.setSector(null);
                     break;
             }
 
@@ -89,37 +99,8 @@ public class BotService {
 
         usuarioSesionService.save(sesion);
 
-        return construirRespuesta(sesion);
-    }
-
-    private String construirRespuesta(UsuarioSesion sesion) {
-
-        StringBuilder response = new StringBuilder();
-
-        if (sesion.getSector() != null
-                && !sesion.getCurrentState().getName().equals("CONFIRMAR_ZONA")) {
-
-            var s = sesion.getSector();
-
-            response.append("📅 En tu zona (")
-                    .append(s.getName())
-                    .append(") la recolección es el ")
-                    .append(s.getSemana())
-                    .append(" ")
-                    .append(s.getDia())
-                    .append(" del mes.\n\n");
-        }
-
-        response.append(sesion.getCurrentState().getMessage()).append("\n\n");
-
-        if ("error".equals(sesion.getTempData())) {
-            response.append("❌ Opción inválida, intenta nuevamente\n\n");
-        }
-
-        if ("error_input".equals(sesion.getTempData())) {
-            response.append("❌ Ingresa un dato válido\n\n");
-        }
-
-        return response.toString();
+        return customResponse != null
+                ? customResponse
+                : sesion.getCurrentState().getMessage();
     }
 }
