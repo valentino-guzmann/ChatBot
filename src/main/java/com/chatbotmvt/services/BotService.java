@@ -31,6 +31,7 @@ public class BotService {
         BotState estado = sesion.getCurrentState();
         String input = message == null ? "" : message.trim();
 
+        // 1. Comando de RESET Global
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
@@ -44,26 +45,25 @@ public class BotService {
             BotFlowRule r = rule.get();
             sesion.setCurrentState(r.getNextState());
 
+            log.info("⚙️ Acción: {} | Input: {}", r.getActionType(), input);
+
             switch (r.getActionType()) {
                 case "SET_TYPE":
                     String tipo = r.getActionValue();
-                    sesion.setTempData(tipo + "|");
-
                     if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS"))) {
+                        sesion.setTempData("PENDIENTE_" + tipo + "|");
                         BotState elegirZona = botStateRepository.findById(14L).get();
                         sesion.setCurrentState(elegirZona);
-                        sesion.setTempData("PENDIENTE_" + tipo + "|");
 
-                        usuarioSesionService.save(sesion);
-
-                        return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n"
-                                + elegirZona.getMessage();
+                        usuarioSesionService.save(sesion); // Guardamos estado actual antes de salir
+                        return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
                     }
+                    sesion.setTempData(tipo + "|");
                     break;
 
                 case "APPEND_TEXT":
-                    String data = sesion.getTempData() == null ? "" : sesion.getTempData();
-                    sesion.setTempData(data + input + "|");
+                    String dataActual = sesion.getTempData() == null ? "" : sesion.getTempData();
+                    sesion.setTempData(dataActual + input + "|");
                     break;
 
                 case "SET_SECTOR":
@@ -80,10 +80,10 @@ public class BotService {
                         sesion.setSector(sector);
 
                         if (temp.contains("PENDIENTE_RIEGO")) {
-                            sesion.setCurrentState(botStateRepository.findById(30L).get()); // Ir a pedir dirección Riego
+                            sesion.setCurrentState(botStateRepository.findById(30L).get());
                             sesion.setTempData("RIEGO|");
                         } else if (temp.contains("PENDIENTE_ESCOMBROS")) {
-                            sesion.setCurrentState(botStateRepository.findById(31L).get()); // Ir a pedir dirección Escombros
+                            sesion.setCurrentState(botStateRepository.findById(31L).get());
                             sesion.setTempData("ESCOMBROS|");
                         } else {
                             sesion.setCurrentState(r.getNextState());
@@ -109,9 +109,25 @@ public class BotService {
                     sesion.setTempData(null);
                     break;
 
+                case "RESET":
+                    if (sesion.getTempData() != null) {
+                        String tipoActual = sesion.getTempData().split("\\|")[0];
+                        Long nextId = switch (tipoActual) {
+                            case "BARRIDO" -> 5L;
+                            case "RIEGO" -> 30L;
+                            case "ESCOMBROS" -> 31L;
+                            case "BOLSONES/DESPERDICIOS" -> 23L;
+                            default -> 4L; // Desmalezado por defecto
+                        };
+                        sesion.setCurrentState(botStateRepository.findById(nextId).get());
+                        sesion.setTempData(tipoActual + "|");
+                    } else {
+                        sesion.setTempData(null);
+                    }
+                    break;
+
                 case "RESET_SECTOR":
                     sesion.setSector(null);
-                case "RESET":
                     sesion.setTempData(null);
                     break;
             }
@@ -129,7 +145,7 @@ public class BotService {
 
         if (sesion.getSector() != null) {
             finalResponse = finalResponse
-                    .replace("{nombre}", sesion.getSector().getName() != null ? sesion.getSector().getName() : "")
+                    .replace("{nombre}", sesion.getSector().getName() != null ? sesion.getSector().getName() : "tu zona")
                     .replace("{link}", sesion.getSector().getCalendarLink() != null ? sesion.getSector().getCalendarLink() : "");
         }
 
