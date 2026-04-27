@@ -31,7 +31,6 @@ public class BotService {
         BotState estado = sesion.getCurrentState();
         String input = message == null ? "" : message.trim();
 
-        // 1. Comando de RESET Global
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
@@ -45,8 +44,6 @@ public class BotService {
             BotFlowRule r = rule.get();
             sesion.setCurrentState(r.getNextState());
 
-            log.info("⚙️ Acción: {} | Input: {}", r.getActionType(), input);
-
             switch (r.getActionType()) {
                 case "SET_TYPE":
                     String tipo = r.getActionValue();
@@ -54,8 +51,7 @@ public class BotService {
                         sesion.setTempData("PENDIENTE_" + tipo + "|");
                         BotState elegirZona = botStateRepository.findById(14L).get();
                         sesion.setCurrentState(elegirZona);
-
-                        usuarioSesionService.save(sesion); // Guardamos estado actual antes de salir
+                        usuarioSesionService.save(sesion);
                         return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
                     }
                     sesion.setTempData(tipo + "|");
@@ -117,7 +113,7 @@ public class BotService {
                             case "RIEGO" -> 30L;
                             case "ESCOMBROS" -> 31L;
                             case "BOLSONES/DESPERDICIOS" -> 23L;
-                            default -> 4L; // Desmalezado por defecto
+                            default -> 4L;
                         };
                         sesion.setCurrentState(botStateRepository.findById(nextId).get());
                         sesion.setTempData(tipoActual + "|");
