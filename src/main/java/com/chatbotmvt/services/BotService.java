@@ -44,17 +44,13 @@ public class BotService {
             BotFlowRule r = rule.get();
             sesion.setCurrentState(r.getNextState());
 
-            log.info("⚙️ Ejecutando Acción: {} | Estado: {} | Input: {}", r.getActionType(), estado.getId(), input);
-
             switch (r.getActionType()) {
                 case "SET_TYPE":
                     String tipo = r.getActionValue();
-                    // VALIDACIÓN: Si pide Riego/Escombros y no tiene zona, lo mandamos a elegirla
                     if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS"))) {
                         sesion.setTempData("PENDIENTE_" + tipo + "|");
                         BotState elegirZona = botStateRepository.findById(14L).get();
                         sesion.setCurrentState(elegirZona);
-
                         usuarioSesionService.save(sesion);
                         return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
                     }
@@ -105,7 +101,17 @@ public class BotService {
                                 (parts.length > 1 ? parts[1] : "") + " " + (parts.length > 2 ? parts[2] : ""),
                                 sesion.getSector()
                         );
+
+                        BotState exito = botStateRepository.findById(25L).get();
+                        String msgExito = exito.getMessage();
+                        if (sesion.getSector() != null) {
+                            msgExito = msgExito.replace("{nombre}", sesion.getSector().getName());
+                        }
+
+                        whatsappService.sendMessage(sesion.getPhone(), msgExito);
                     }
+
+                    sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
                     sesion.setTempData(null);
                     break;
 
@@ -147,12 +153,9 @@ public class BotService {
         String finalResponse = sesion.getCurrentState().getMessage();
 
         if (sesion.getSector() != null) {
-            String nombre = sesion.getSector().getName() != null ? sesion.getSector().getName() : "tu zona";
-            String link = sesion.getSector().getCalendarLink() != null ? sesion.getSector().getCalendarLink() : "";
-
             finalResponse = finalResponse
-                    .replace("{nombre}", nombre)
-                    .replace("{link}", link);
+                    .replace("{nombre}", sesion.getSector().getName() != null ? sesion.getSector().getName() : "tu zona")
+                    .replace("{link}", sesion.getSector().getCalendarLink() != null ? sesion.getSector().getCalendarLink() : "");
         }
 
         return finalResponse;
