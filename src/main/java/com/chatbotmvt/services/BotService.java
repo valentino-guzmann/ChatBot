@@ -31,6 +31,7 @@ public class BotService {
         BotState estado = sesion.getCurrentState();
         String input = message == null ? "" : message.trim();
 
+        // 1. Comando de RESET Global
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
@@ -38,23 +39,33 @@ public class BotService {
             return sesion.getCurrentState().getMessage();
         }
 
+        String customResponse = null;
         Optional<BotFlowRule> rule = botFlowRuleService.find(estado, input);
 
         if (rule.isPresent()) {
             BotFlowRule r = rule.get();
             sesion.setCurrentState(r.getNextState());
 
+            log.info("⚙️ Acción: {} | Tipo: {}", r.getActionType(), r.getActionValue());
+
             switch (r.getActionType()) {
                 case "SET_TYPE":
                     String tipo = r.getActionValue();
-                    if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS"))) {
-                        sesion.setTempData("PENDIENTE_" + tipo + "|");
+
+                    if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS") ||
+                            tipo.equals("DESMALEZADO") || tipo.equals("BARRIDO"))) {
+
+                        String infoExtra = r.getInputPattern().equals("default") ? input + "|" : "";
+                        sesion.setTempData("PENDIENTE_" + tipo + "|" + infoExtra);
+
                         BotState elegirZona = botStateRepository.findById(14L).get();
                         sesion.setCurrentState(elegirZona);
                         usuarioSesionService.save(sesion);
+
                         return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
                     }
-                    sesion.setTempData(tipo + "|");
+
+                    sesion.setTempData(tipo + "|" + (r.getInputPattern().equals("default") ? input + "|" : ""));
                     break;
 
                 case "APPEND_TEXT":
@@ -81,6 +92,11 @@ public class BotService {
                         } else if (temp.contains("PENDIENTE_ESCOMBROS")) {
                             sesion.setCurrentState(botStateRepository.findById(31L).get());
                             sesion.setTempData("ESCOMBROS|");
+                        } else if (temp.contains("PENDIENTE_DESMALEZADO") || temp.contains("PENDIENTE_BARRIDO")) {
+                            String tipoOriginal = temp.contains("DESMALEZADO") ? "DESMALEZADO" : "BARRIDO";
+                            String direccion = temp.split("\\|")[1]; // Recuperamos la dirección guardada
+                            sesion.setCurrentState(botStateRepository.findById(6L).get());
+                            sesion.setTempData(tipoOriginal + "|" + direccion + "|");
                         } else {
                             sesion.setCurrentState(r.getNextState());
                             sesion.setTempData(null);
@@ -107,10 +123,8 @@ public class BotService {
                         if (sesion.getSector() != null) {
                             msgExito = msgExito.replace("{nombre}", sesion.getSector().getName());
                         }
-
                         whatsappService.sendMessage(sesion.getPhone(), msgExito);
                     }
-
                     sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
                     sesion.setTempData(null);
                     break;
