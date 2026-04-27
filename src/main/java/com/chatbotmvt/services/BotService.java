@@ -22,30 +22,26 @@ public class BotService {
 
     public String procesarMensaje(String phone, String message) {
 
-        UsuarioSesion sesion =
-                usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+        log.info("📩 Mensaje recibido de [{}]: {}", phone, message);
+
+        UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
         String input = message == null ? "" : message.trim();
 
-        log.info("📩 Mensaje de [{}]: {}", phone, input);
+        BotState estado = sesion.getCurrentState();
+
+        log.info("👤 Usuario [{}] en estado: {}", phone, estado.getName());
 
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
 
-            log.info("🔄 Reset a menú principal");
-
-            sesion.setCurrentState(
-                    usuarioSesionService.obtenerEstadoInicial()
-            );
-
+            sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
+            sesion.setSector(null);
 
             usuarioSesionService.save(sesion);
 
             return sesion.getCurrentState().getMessage();
         }
-
-        BotState estado = sesion.getCurrentState();
-
         Optional<BotFlowRule> rule =
                 botFlowRuleService.find(estado, input);
 
@@ -53,7 +49,7 @@ public class BotService {
 
             BotFlowRule r = rule.get();
 
-            log.info("⚙️ FlowRule encontrada: {}", r.getInputPattern());
+            log.info("⚙️ Regla aplicada: {}", r.getActionType());
 
             sesion.setCurrentState(r.getNextState());
 
@@ -65,26 +61,26 @@ public class BotService {
 
                 case "APPEND_TEXT":
                     sesion.setTempData(
-                            sesion.getTempData() == null
-                                    ? input
-                                    : sesion.getTempData() + input
+                            (sesion.getTempData() == null ? "" : sesion.getTempData())
+                                    + input
                     );
                     break;
 
                 case "CREATE_RECLAMO":
-                    String[] parts = sesion.getTempData() != null
-                            ? sesion.getTempData().split("\\|")
-                            : new String[]{"SIN_TIPO", "SIN_DATA"};
+
+                    String[] parts = sesion.getTempData().split("\\|");
 
                     reclamoService.crearReclamo(
                             sesion.getPhone(),
                             parts[0],
                             parts.length > 1 ? parts[1] : ""
                     );
+
                     break;
 
                 case "RESET":
                     sesion.setTempData(null);
+                    sesion.setSector(null);
                     break;
             }
 
@@ -94,37 +90,36 @@ public class BotService {
 
         usuarioSesionService.save(sesion);
 
-        return sesion.getCurrentState().getMessage();
+        return construirRespuesta(sesion);
     }
 
-    private void executeAction(BotFlowRule r,
-                               UsuarioSesion sesion,
-                               String message) {
+    private String construirRespuesta(UsuarioSesion sesion) {
 
-        switch (r.getActionType()) {
+        StringBuilder response = new StringBuilder();
 
-            case "SET_TYPE":
-                sesion.setTempData(r.getActionValue() + "|");
-                break;
+        if (sesion.getSector() != null) {
 
-            case "APPEND_TEXT":
-                sesion.setTempData(sesion.getTempData() + message);
-                break;
+            var s = sesion.getSector();
 
-            case "CREATE_RECLAMO":
-
-                String[] parts = sesion.getTempData().split("\\|");
-
-                reclamoService.crearReclamo(
-                        sesion.getPhone(),
-                        parts[0],
-                        parts[1]
-                );
-                break;
-
-            case "RESET":
-                sesion.setTempData(null);
-                break;
+            response.append("📅 En tu zona (")
+                    .append(s.getName())
+                    .append(") la recolección es el ")
+                    .append(s.getSemana())
+                    .append(" ")
+                    .append(s.getDia())
+                    .append(" del mes.\n\n");
         }
+
+        response.append(sesion.getCurrentState().getMessage()).append("\n\n");
+
+        if ("error".equals(sesion.getTempData())) {
+            response.append("❌ Opción inválida, intenta nuevamente\n\n");
+        }
+
+        if ("error_input".equals(sesion.getTempData())) {
+            response.append("❌ Ingresa un dato válido\n\n");
+        }
+
+        return response.toString();
     }
 }

@@ -26,7 +26,9 @@ public class UsuarioSesion {
     @JoinColumn(name = "current_state_id")
     private BotState currentState;
 
-    private String sector;
+    @ManyToOne
+    @JoinColumn(name = "sector_id")
+    private Sector sector;
     
     @Lob
     private String tempData;
