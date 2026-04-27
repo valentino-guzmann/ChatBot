@@ -31,7 +31,6 @@ public class BotService {
         BotState estado = sesion.getCurrentState();
         String input = message == null ? "" : message.trim();
 
-        // 1. Comando de RESET Global
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
@@ -39,19 +38,15 @@ public class BotService {
             return sesion.getCurrentState().getMessage();
         }
 
-        String customResponse = null;
         Optional<BotFlowRule> rule = botFlowRuleService.find(estado, input);
 
         if (rule.isPresent()) {
             BotFlowRule r = rule.get();
             sesion.setCurrentState(r.getNextState());
 
-            log.info("⚙️ Acción: {} | Tipo: {}", r.getActionType(), r.getActionValue());
-
             switch (r.getActionType()) {
                 case "SET_TYPE":
                     String tipo = r.getActionValue();
-
                     if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS") ||
                             tipo.equals("DESMALEZADO") || tipo.equals("BARRIDO"))) {
 
@@ -64,7 +59,6 @@ public class BotService {
 
                         return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
                     }
-
                     sesion.setTempData(tipo + "|" + (r.getInputPattern().equals("default") ? input + "|" : ""));
                     break;
 
@@ -94,7 +88,7 @@ public class BotService {
                             sesion.setTempData("ESCOMBROS|");
                         } else if (temp.contains("PENDIENTE_DESMALEZADO") || temp.contains("PENDIENTE_BARRIDO")) {
                             String tipoOriginal = temp.contains("DESMALEZADO") ? "DESMALEZADO" : "BARRIDO";
-                            String direccion = temp.split("\\|")[1]; // Recuperamos la dirección guardada
+                            String direccion = temp.split("\\|")[1];
                             sesion.setCurrentState(botStateRepository.findById(6L).get());
                             sesion.setTempData(tipoOriginal + "|" + direccion + "|");
                         } else {
@@ -154,10 +148,9 @@ public class BotService {
         } else {
             menuHandler.handle(sesion, input);
         }
-
         if (sesion.getSector() != null && sesion.getCurrentState() != null) {
-            Long idEstadoActual = sesion.getCurrentState().getId();
-            if (Long.valueOf(8).equals(idEstadoActual) || Long.valueOf(9).equals(idEstadoActual)) {
+            Long id = sesion.getCurrentState().getId();
+            if (Long.valueOf(8).equals(id) || Long.valueOf(9).equals(id)) {
                 sesion.setCurrentState(botStateRepository.findById(21L).get());
             }
         }

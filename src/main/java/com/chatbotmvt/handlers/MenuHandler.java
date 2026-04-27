@@ -14,30 +14,18 @@ public class MenuHandler {
     private final BotOpcionService botOpcionService;
 
     public void handle(UsuarioSesion sesion, String message) {
-
         var estado = sesion.getCurrentState();
-
         var opcion = botOpcionService.obtenerEstadoYOpcion(estado, message);
 
         if (opcion.isPresent()) {
-
             log.info("✅ Opción válida [{}]", message);
-
             sesion.setCurrentState(opcion.get().getNextState());
-            sesion.setTempData(null);
-
         } else {
-
             if (message.matches("\\d+")) {
-
                 log.warn("❌ Opción inválida: {}", message);
-
                 sesion.setTempData("error");
-
             } else {
-
                 log.info("💬 Texto ignorado: {}", message);
-                sesion.setTempData(null);
             }
         }
     }
