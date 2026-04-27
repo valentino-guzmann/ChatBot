@@ -63,7 +63,6 @@ public class BotService {
                 case "SET_SECTOR":
                     Long sectorId = Long.valueOf(r.getActionValue());
                     sesion.setTempData("SECTOR|" + sectorId);
-                    customResponse = sectorService.construirMensajeZona(sectorId);
                     break;
 
                 case "CONFIRM_SECTOR":
