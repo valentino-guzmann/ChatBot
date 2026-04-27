@@ -47,13 +47,18 @@ public class BotService {
             switch (r.getActionType()) {
                 case "SET_TYPE":
                     String tipo = r.getActionValue();
+                    sesion.setTempData(tipo + "|");
+
                     if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS"))) {
-                        sesion.setTempData("PENDIENTE_" + tipo + "|");
                         BotState elegirZona = botStateRepository.findById(14L).get();
                         sesion.setCurrentState(elegirZona);
-                        return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
+                        sesion.setTempData("PENDIENTE_" + tipo + "|");
+
+                        usuarioSesionService.save(sesion);
+
+                        return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n"
+                                + elegirZona.getMessage();
                     }
-                    sesion.setTempData(tipo + "|");
                     break;
 
                 case "APPEND_TEXT":
@@ -63,8 +68,8 @@ public class BotService {
 
                 case "SET_SECTOR":
                     Long sectorId = Long.valueOf(r.getActionValue());
-                    String previo = sesion.getTempData() != null ? sesion.getTempData() : "";
-                    sesion.setTempData(previo + "ZONA:" + sectorId + "|");
+                    String dataPrevia = sesion.getTempData() != null ? sesion.getTempData() : "";
+                    sesion.setTempData(dataPrevia + "ZONA:" + sectorId + "|");
                     break;
 
                 case "CONFIRM_SECTOR":
