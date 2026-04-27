@@ -61,10 +61,8 @@ public class BotService {
                     break;
 
                 case "SET_SECTOR":
-                    Long sectorId = Long.valueOf(input);
-
+                    Long sectorId = Long.valueOf(r.getActionValue());
                     sesion.setTempData("SECTOR|" + sectorId);
-
                     customResponse = sectorService.construirMensajeZona(sectorId);
                     break;
 
@@ -90,13 +88,12 @@ public class BotService {
                     break;
 
                 case "CREATE_RECLAMO":
-
                     String[] parts = sesion.getTempData().split("\\|");
-
                     reclamoService.crearReclamo(
                             sesion.getPhone(),
                             parts[0],
-                            parts.length > 1 ? parts[1] : ""
+                            parts.length > 1 ? parts[1] : "",
+                            sesion.getSector()
                     );
                     break;
 
