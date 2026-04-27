@@ -9,7 +9,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class Sector {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,4 +16,7 @@ public class Sector {
     private String name;
     private String dia;
     private String semana;
+
+    private String calendarLink;
+    private String imageUrl;
 }

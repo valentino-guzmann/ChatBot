@@ -20,6 +20,7 @@ public class BotService {
     private final ReclamoService reclamoService;
     private final BotFlowRuleService botFlowRuleService;
     private final SectorService sectorService;
+    private final WhatsappService whatsappService;
 
     public String procesarMensaje(String phone, String message) {
 
@@ -66,21 +67,26 @@ public class BotService {
                     break;
 
                 case "CONFIRM_SECTOR":
-
                     String temp = sesion.getTempData();
-
                     if (temp != null && temp.startsWith("SECTOR|")) {
-
                         Long sectorIdConfirmado = Long.parseLong(temp.split("\\|")[1]);
-
                         var sector = sectorService.findById(sectorIdConfirmado);
 
                         sesion.setSector(sector);
-                    }
+                        sesion.setCurrentState(r.getNextState()); // Nos mueve al estado 21
 
+                        if (sector.getImageUrl() != null && !sector.getImageUrl().isEmpty()) {
+                            whatsappService.sendImage(sesion.getPhone(), sector.getImageUrl());
+                        }
+
+                        // Reemplazamos los datos en el mensaje del estado
+                        String mensajeBase = sesion.getCurrentState().getMessage();
+                        customResponse = mensajeBase
+                                .replace("{nombre}", sector.getName())
+                                .replace("{link}", sector.getCalendarLink());
+                    }
                     sesion.setTempData(null);
                     break;
-
                 case "RESET_SECTOR":
                     sesion.setSector(null);
                     sesion.setTempData(null);
