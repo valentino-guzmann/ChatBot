@@ -2,6 +2,7 @@ package com.chatbotmvt.handlers;
 
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.services.BotOpcionService;
+import com.chatbotmvt.services.BotStateService;
 import com.chatbotmvt.services.SectorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,12 +15,12 @@ public class MenuHandler {
 
     private final BotOpcionService botOpcionService;
     private final SectorService sectorService;
+    private final BotStateService botStateService;
 
     public void handle(UsuarioSesion sesion, String message) {
 
         var estado = sesion.getCurrentState();
 
-        // 🔥 Guardar zona automáticamente
         if (estado.getName().equals("SELECCION_ZONA_BOLSONES")
                 || estado.getName().equals("SELECCION_ZONA_DESPERDICIOS")) {
 
@@ -30,9 +31,11 @@ public class MenuHandler {
                 case "4" -> sesion.setSector(sectorService.getById(4L));
             }
 
-            if (sesion.getSector() != null) {
-                log.info("📍 Zona guardada: {}", sesion.getSector().getName());
-            }
+            sesion.setCurrentState(
+                    botStateService.findByName("CONFIRMAR_ZONA")
+            );
+
+            return;
         }
 
         var opcion = botOpcionService.obtenerEstadoYOpcion(estado, message);

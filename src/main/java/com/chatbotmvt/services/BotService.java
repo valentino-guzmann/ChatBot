@@ -36,7 +36,6 @@ public class BotService {
 
             sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
             sesion.setTempData(null);
-            sesion.setSector(null);
 
             usuarioSesionService.save(sesion);
 
@@ -97,7 +96,8 @@ public class BotService {
 
         StringBuilder response = new StringBuilder();
 
-        if (sesion.getSector() != null) {
+        if (sesion.getSector() != null
+                && !sesion.getCurrentState().getName().equals("CONFIRMAR_ZONA")) {
 
             var s = sesion.getSector();
 
