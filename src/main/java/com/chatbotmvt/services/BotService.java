@@ -62,19 +62,32 @@ public class BotService {
 
                 case "SET_SECTOR":
                     Long sectorId = Long.valueOf(input);
-                    var sector = sectorService.findById(sectorId);
 
-                    sesion.setSector(sector);
+                    sesion.setTempData("SECTOR|" + sectorId);
 
                     customResponse = sectorService.construirMensajeZona(sectorId);
                     break;
 
                 case "CONFIRM_SECTOR":
-                    // no hace nada, solo sigue flujo
+                    String temp = sesion.getTempData();
+
+                    if (temp != null && temp.startsWith("SECTOR|")) {
+
+                        Long sectorIdConfirmado =
+                                Long.valueOf(temp.split("\\|")[1]);
+
+                        var sectorConfirmado =
+                                sectorService.findById(sectorIdConfirmado);
+
+                        sesion.setSector(sectorConfirmado);
+                    }
+
+                    sesion.setTempData(null);
                     break;
 
                 case "RESET_SECTOR":
                     sesion.setSector(null);
+                    sesion.setTempData(null);
                     break;
 
                 case "CREATE_RECLAMO":
