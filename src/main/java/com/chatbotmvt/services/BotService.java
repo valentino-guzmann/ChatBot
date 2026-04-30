@@ -1,14 +1,17 @@
 package com.chatbotmvt.services;
 
+import com.chatbotmvt.dto.SessionData;
 import com.chatbotmvt.entity.BotFlowRule;
 import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
-import com.chatbotmvt.entity.Sector;
+import com.chatbotmvt.handlers.ActionHandlerFactory;
 import com.chatbotmvt.handlers.MenuHandler;
 import com.chatbotmvt.repository.BotStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -19,160 +22,92 @@ public class BotService {
 
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
-    private final ReclamoService reclamoService;
     private final BotFlowRuleService botFlowRuleService;
-    private final SectorService sectorService;
-    private final WhatsappService whatsappService;
+    private final ActionHandlerFactory actionHandlerFactory;
     private final BotStateRepository botStateRepository;
+    private final WhatsappService whatsappService;
 
+    @Transactional
     public String procesarMensaje(String phone, String message) {
-
         UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
-        BotState estado = sesion.getCurrentState();
-        String input = message == null ? "" : message.trim();
+        BotState estadoActual = sesion.getCurrentState();
+        String input = (message == null) ? "" : message.trim();
+
+        log.debug("Procesando mensaje para [{}]. Estado actual: [{}]. Input: [{}]",
+                phone, estadoActual.getName(), input);
 
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
-            sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
-            sesion.setTempData(null);
-            usuarioSesionService.save(sesion);
-            return sesion.getCurrentState().getMessage();
+            return resetearAlMenuInicial(sesion);
         }
 
-        String customResponse = null;
-        Optional<BotFlowRule> rule = botFlowRuleService.find(estado, input);
+        Optional<BotFlowRule> ruleOpt = botFlowRuleService.find(estadoActual, input);
 
-        if (rule.isPresent()) {
-            BotFlowRule r = rule.get();
-            sesion.setCurrentState(r.getNextState());
+        if (ruleOpt.isPresent()) {
+            BotFlowRule rule = ruleOpt.get();
 
-            switch (r.getActionType()) {
-                case "SET_TYPE":
-                    String tipo = r.getActionValue().trim().toUpperCase();
+            sesion.setCurrentState(rule.getNextState());
 
-                    if (sesion.getSector() == null && (tipo.equals("RIEGO") || tipo.equals("ESCOMBROS") ||
-                            tipo.equals("DESMALEZADO") || tipo.equals("BARRIDO"))) {
+            String customResponse = actionHandlerFactory.getHandler(rule.getActionType())
+                    .map(handler -> handler.execute(sesion, rule, input))
+                    .orElse(null);
 
-                        String infoExtra = r.getInputPattern().equals("default") ? input + "|" : "";
-                        sesion.setTempData("PENDIENTE_" + tipo + "|" + infoExtra);
-
-                        BotState elegirZona = botStateRepository.findById(14L).get();
-                        sesion.setCurrentState(elegirZona);
-                        usuarioSesionService.save(sesion);
-
-                        return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
-                    }
-
-                    sesion.setTempData(tipo + "|" + (r.getInputPattern().equals("default") ? input + "|" : ""));
-                    break;
-
-                case "APPEND_TEXT":
-                    String dataActual = sesion.getTempData() == null ? "" : sesion.getTempData();
-                    sesion.setTempData(dataActual + input + "|");
-                    break;
-
-                case "SET_SECTOR":
-                    Long sectorId = Long.valueOf(r.getActionValue());
-                    String dataPrevia = sesion.getTempData() != null ? sesion.getTempData() : "";
-                    sesion.setTempData(dataPrevia + "ZONA:" + sectorId + "|");
-                    break;
-
-                case "CONFIRM_SECTOR":
-                    String temp = sesion.getTempData();
-                    if (temp != null && temp.contains("ZONA:")) {
-                        String idStr = temp.substring(temp.lastIndexOf("ZONA:") + 5).split("\\|")[0];
-                        Sector sector = sectorService.findById(Long.parseLong(idStr));
-                        sesion.setSector(sector);
-
-                        if (temp.contains("PENDIENTE_RIEGO")) {
-                            sesion.setCurrentState(botStateRepository.findById(30L).get());
-                            sesion.setTempData("RIEGO|");
-                        } else if (temp.contains("PENDIENTE_ESCOMBROS")) {
-                            sesion.setCurrentState(botStateRepository.findById(31L).get());
-                            sesion.setTempData("ESCOMBROS|");
-                        } else if (temp.contains("PENDIENTE_DESMALEZADO") || temp.contains("PENDIENTE_BARRIDO")) {
-                            String tipoOriginal = temp.contains("DESMALEZADO") ? "DESMALEZADO" : "BARRIDO";
-                            String info = temp.split("\\|").length > 1 ? temp.split("\\|")[1] : "";
-
-                            // Si ya tenemos la dirección, vamos a Referencia (6), sino a pedir dirección (4 o 5)
-                            if (info.startsWith("PENDIENTE") || info.startsWith("ZONA") || info.isEmpty()) {
-                                Long nextId = tipoOriginal.equals("BARRIDO") ? 5L : 4L;
-                                sesion.setCurrentState(botStateRepository.findById(nextId).get());
-                                sesion.setTempData(tipoOriginal + "|");
-                            } else {
-                                sesion.setCurrentState(botStateRepository.findById(6L).get());
-                                sesion.setTempData(tipoOriginal + "|" + info + "|");
-                            }
-                        } else {
-                            sesion.setCurrentState(r.getNextState());
-                            sesion.setTempData(null);
-                        }
-
-                        if (sector.getImageUrl() != null && !sector.getImageUrl().isEmpty()) {
-                            whatsappService.sendImage(sesion.getPhone(), sector.getImageUrl());
-                        }
-                    }
-                    break;
-
-                case "CREATE_RECLAMO":
-                    if (sesion.getTempData() != null) {
-                        String[] parts = sesion.getTempData().split("\\|");
-                        reclamoService.crearReclamo(
-                                sesion.getPhone(),
-                                parts[0],
-                                (parts.length > 1 ? parts[1] : "") + " " + (parts.length > 2 ? parts[2] : ""),
-                                sesion.getSector()
-                        );
-
-                        BotState exito = botStateRepository.findById(25L).get();
-                        String msgExito = exito.getMessage();
-                        if (sesion.getSector() != null) {
-                            msgExito = msgExito.replace("{nombre}", sesion.getSector().getName());
-                        }
-                        whatsappService.sendMessage(sesion.getPhone(), msgExito);
-                    }
-                    sesion.setCurrentState(usuarioSesionService.obtenerEstadoInicial());
-                    sesion.setTempData(null);
-                    break;
-
-                case "RESET":
-                    if (sesion.getTempData() != null) {
-                        String tipoActual = sesion.getTempData().split("\\|")[0];
-                        Long nextId = switch (tipoActual) {
-                            case "BARRIDO" -> 5L;
-                            case "RIEGO" -> 30L;
-                            case "ESCOMBROS" -> 31L;
-                            case "BOLSONES/DESPERDICIOS" -> 23L;
-                            default -> 4L;
-                        };
-                        sesion.setCurrentState(botStateRepository.findById(nextId).get());
-                        sesion.setTempData(tipoActual + "|");
-                    } else {
-                        sesion.setTempData(null);
-                    }
-                    break;
-
+            if (customResponse != null) {
+                usuarioSesionService.save(sesion);
+                return reemplazarEtiquetas(customResponse, sesion);
             }
+
         } else {
             menuHandler.handle(sesion, input);
         }
 
-        if (sesion.getSector() != null && sesion.getCurrentState() != null) {
-            Long id = sesion.getCurrentState().getId();
-            if (Long.valueOf(8).equals(id) || Long.valueOf(9).equals(id)) {
-                sesion.setCurrentState(botStateRepository.findById(21L).get());
-            }
-        }
+        verificarTransicionesEspeciales(sesion);
 
         usuarioSesionService.save(sesion);
 
-        String finalResponse = (customResponse != null) ? customResponse : sesion.getCurrentState().getMessage();
+        return reemplazarEtiquetas(sesion.getCurrentState().getMessage(), sesion);
+    }
 
-        if (sesion.getSector() != null) {
-            finalResponse = finalResponse
-                    .replace("{nombre}", sesion.getSector().getName() != null ? sesion.getSector().getName() : "tu zona")
-                    .replace("{link}", sesion.getSector().getCalendarLink() != null ? sesion.getSector().getCalendarLink() : "");
+    @Async
+    public void procesarYResponder(String phone, String text) {
+        try {
+            String response = procesarMensaje(phone, text);
+            if (response != null) {
+                whatsappService.sendMessage(phone, response);
+            }
+        } catch (Exception e) {
+            log.error("Error en procesamiento asíncrono para {}: {}", phone, e.getMessage());
         }
+    }
+    private String resetearAlMenuInicial(UsuarioSesion sesion) {
+        BotState estadoInicial = usuarioSesionService.obtenerEstadoInicial();
+        sesion.setCurrentState(estadoInicial);
+        sesion.setTempData(new SessionData());
+        usuarioSesionService.save(sesion);
+        return reemplazarEtiquetas(estadoInicial.getMessage(), sesion);
+    }
 
-        return finalResponse;
+    private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
+        if (mensaje == null) return "";
+
+        String resultado = mensaje;
+        if (sesion.getSector() != null) {
+            String nombreSector = (sesion.getSector().getName() != null) ? sesion.getSector().getName() : "tu zona";
+            String linkSector = (sesion.getSector().getCalendarLink() != null) ? sesion.getSector().getCalendarLink() : "";
+
+            resultado = resultado
+                    .replace("{nombre}", nombreSector)
+                    .replace("{link}", linkSector);
+        }
+        return resultado;
+    }
+
+    private void verificarTransicionesEspeciales(UsuarioSesion sesion) {
+        if (sesion.getSector() != null && sesion.getCurrentState() != null) {
+            Long stateId = sesion.getCurrentState().getId();
+
+            if (Long.valueOf(8).equals(stateId) || Long.valueOf(9).equals(stateId)) {
+                botStateRepository.findById(21L).ifPresent(sesion::setCurrentState);
+            }
+        }
     }
 }

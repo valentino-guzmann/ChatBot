@@ -1,5 +1,6 @@
 package com.chatbotmvt.services;
 
+import com.chatbotmvt.dto.SessionData;
 import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.repository.BotStateRepository;

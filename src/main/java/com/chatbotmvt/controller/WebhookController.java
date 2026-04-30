@@ -1,13 +1,15 @@
 package com.chatbotmvt.controller;
 
-import com.chatbotmvt.dto.MessageReceived;
-import com.chatbotmvt.dto.WebhookRequest;
+import com.chatbotmvt.dto.*;
 import com.chatbotmvt.services.BotService;
 import com.chatbotmvt.services.WhatsappService;
+import com.chatbotmvt.services.WebhookSecurityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Optional;
 
@@ -19,6 +21,8 @@ public class WebhookController {
 
     private final BotService botService;
     private final WhatsappService whatsappService;
+    private final WebhookSecurityService securityService;
+    private final ObjectMapper objectMapper;
 
     @GetMapping
     public ResponseEntity<String> verifyWebhook(
@@ -26,8 +30,7 @@ public class WebhookController {
             @RequestParam("hub.challenge") String challenge,
             @RequestParam("hub.verify_token") String token
     ) {
-
-        log.info("🔐 Verificación webhook → mode: {}, token recibido: {}", mode, token);
+        log.info("🔐 Intento de verificación webhook → token recibido: {}", token);
 
         if ("subscribe".equals(mode) && "mi_token_secreto".equals(token)) {
             log.info("✅ Webhook verificado correctamente");
@@ -35,81 +38,60 @@ public class WebhookController {
         }
 
         log.warn("❌ Falló verificación webhook");
-        return ResponseEntity.status(403).build();
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
     }
 
     @PostMapping
-    public ResponseEntity<Void> receiveMessage(@RequestBody WebhookRequest request) {
+    public ResponseEntity<Void> receiveMessage(
+            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature,
+            @RequestBody String rawPayload) {
 
-        log.info("📥 Webhook recibido");
+        log.debug("📥 Payload recibido: {}", rawPayload);
 
-        var messageOpt = extractMessage(request);
-
-        if (messageOpt.isEmpty()) {
-            log.warn("⚠️ No se encontró mensaje en el payload");
-            return ResponseEntity.ok().build();
+        if (!securityService.isSignatureValid(rawPayload, signature)) {
+            log.warn("❌ Firma inválida");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-
-        var msg = messageOpt.get();
-
-        if (msg.text() == null || msg.text().body() == null) {
-            log.warn("⚠️ Mensaje sin texto válido");
-            return ResponseEntity.ok().build();
-        }
-
-        String phone = msg.from();
-        String text = msg.text().body();
-
-        log.info("📩 Mensaje entrante de [{}]: {}", phone, text);
 
         try {
+            WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
 
-            String response = botService.procesarMensaje(phone, text);
+            var messageOpt = extractMessage(request);
 
-            if (response != null) {
+            if (messageOpt.isPresent()) {
+                MessageReceived msg = messageOpt.get();
 
-                log.info("📤 Enviando respuesta a [{}]", phone);
+                if (msg.text() != null && msg.text().body() != null) {
+                    String phone = msg.from();
+                    String text = msg.text().body();
 
-                whatsappService.sendMessage(phone, response);
+                    log.info("📩 Mensaje recibido de [{}]. Procesando de forma asíncrona...", phone);
 
-            } else {
-
-                log.info("⏭️ No se envía respuesta (flujo controlado, ejemplo: saludo inicial)");
+                    botService.procesarYResponder(phone, text);
+                }
             }
 
         } catch (Exception e) {
-
-            log.error("❌ Error procesando mensaje de [{}]: {}", phone, e.getMessage(), e);
+            log.error("❌ Error procesando webhook: {}", e.getMessage());
         }
 
         return ResponseEntity.ok().build();
     }
 
-    public Optional<MessageReceived> extractMessage(WebhookRequest request) {
-
-        log.debug("🔍 Extrayendo mensaje del payload");
-
-        if (request.entry() == null || request.entry().isEmpty()) {
-            log.warn("⚠️ entry vacío");
+    private Optional<MessageReceived> extractMessage(WebhookRequest request) {
+        try {
+            return Optional.ofNullable(request.entry())
+                    .filter(entries -> !entries.isEmpty())
+                    .map(entries -> entries.get(0))
+                    .map(Entry::changes)
+                    .filter(changes -> !changes.isEmpty())
+                    .map(changes -> changes.get(0))
+                    .map(Change::value)
+                    .map(Value::messages)
+                    .filter(messages -> !messages.isEmpty())
+                    .map(messages -> messages.get(0));
+        } catch (Exception e) {
             return Optional.empty();
         }
-
-        var entry = request.entry().get(0);
-
-        if (entry.changes() == null || entry.changes().isEmpty()) {
-            log.warn("⚠️ changes vacío");
-            return Optional.empty();
-        }
-
-        var change = entry.changes().get(0);
-
-        if (change.value() == null || change.value().messages() == null || change.value().messages().isEmpty()) {
-            log.warn("⚠️ messages vacío");
-            return Optional.empty();
-        }
-
-        log.debug("✅ Mensaje extraído correctamente");
-
-        return Optional.of(change.value().messages().get(0));
     }
 }

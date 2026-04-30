@@ -1,5 +1,7 @@
 package com.chatbotmvt.entity;
 
+import com.chatbotmvt.config.SessionDataConverter;
+import com.chatbotmvt.dto.SessionData;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -29,9 +31,10 @@ public class UsuarioSesion {
     @ManyToOne
     @JoinColumn(name = "sector_id")
     private Sector sector;
-    
-    @Lob
-    private String tempData;
+
+    @Column(columnDefinition = "TEXT")
+    @Convert(converter = SessionDataConverter.class)
+    private SessionData tempData;
 
     private LocalDateTime created_at;
     private LocalDateTime updated_at;
