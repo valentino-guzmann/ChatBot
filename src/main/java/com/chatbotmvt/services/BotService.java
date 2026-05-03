@@ -72,26 +72,24 @@ public class BotService {
     @Async
     public void procesarYResponder(String phone, String text) {
         try {
-            UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
             String respuestaTexto = procesarMensaje(phone, text);
-            BotState estadoDestino = sesion.getCurrentState();
 
-            if (estadoDestino.getTemplateName() != null && !estadoDestino.getTemplateName().isEmpty()) {
+            UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+            BotState estadoActual = sesion.getCurrentState();
 
-                whatsappService.sendTemplate(phone, estadoDestino.getTemplateName());
+            if (estadoActual.getImageUrl() != null && !estadoActual.getImageUrl().isEmpty()) {
+                log.info("🖼️ Enviando imagen para el estado: {}", estadoActual.getName());
+                whatsappService.sendImage(phone, estadoActual.getImageUrl());
 
-            } else {
-                if (respuestaTexto != null) {
-                    whatsappService.sendMessage(phone, respuestaTexto);
-                }
+                Thread.sleep(500);
             }
 
-            if (estadoDestino.getImageUrl() != null) {
-                whatsappService.sendImage(phone, estadoDestino.getImageUrl());
+            if (respuestaTexto != null && !respuestaTexto.isEmpty()) {
+                whatsappService.sendMessage(phone, respuestaTexto);
             }
 
         } catch (Exception e) {
-            log.error("Error en procesamiento asíncrono: {}", e.getMessage());
+            log.error("❌ Error en respuesta asíncrona: {}", e.getMessage());
         }
     }
 

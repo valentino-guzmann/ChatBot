@@ -47,22 +47,6 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendTemplate(String phone, String templateName) {
-        log.info("📤 Enviando plantilla [{}] a [{}]", templateName, phone);
-
-        var body = Map.of(
-                "messaging_product", "whatsapp",
-                "to", formatPhone(phone),
-                "type", "template",
-                "template", Map.of(
-                        "name", templateName,
-                        "language", Map.of("code", "es_AR")
-                )
-        );
-
-        execute(body);
-    }
-
     private void execute(Object body) {
 
         log.debug("🚀 Ejecutando request a WhatsApp API");
