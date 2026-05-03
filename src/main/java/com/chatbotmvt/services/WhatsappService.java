@@ -36,7 +36,7 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendImage(String phone, String imageUrl) {
+    public void sendTemplate(String phone, String imageUrl) {
         log.info("📤 Enviando imagen a [{}]", phone);
         var body = Map.of(
                 "messaging_product", "whatsapp",

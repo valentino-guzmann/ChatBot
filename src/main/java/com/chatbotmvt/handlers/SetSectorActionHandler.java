@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class SetSectorActionHandler implements BotActionHandler {
-    private final SectorService sectorService;
 
     @Override
     public String getActionType() { return "SET_SECTOR"; }

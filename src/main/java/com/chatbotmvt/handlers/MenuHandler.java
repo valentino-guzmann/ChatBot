@@ -16,7 +16,7 @@ public class MenuHandler {
 
     public void handle(UsuarioSesion sesion, String message) {
         var estadoActual = sesion.getCurrentState();
-        SessionData data = sesion.getTempData(); // Objeto JSON
+        SessionData data = sesion.getTempData();
 
         var opcionOpt = botOpcionService.obtenerEstadoYOpcion(estadoActual, message);
 
