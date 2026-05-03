@@ -3,6 +3,7 @@ package com.chatbotmvt.services;
 import com.chatbotmvt.dto.SessionData;
 import com.chatbotmvt.entity.BotFlowRule;
 import com.chatbotmvt.entity.BotState;
+import com.chatbotmvt.entity.Sector;
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.handlers.ActionHandlerFactory;
 import com.chatbotmvt.handlers.MenuHandler;
@@ -26,6 +27,7 @@ public class BotService {
     private final ActionHandlerFactory actionHandlerFactory;
     private final BotStateRepository botStateRepository;
     private final WhatsappService whatsappService;
+    private final SectorService sectorService;
 
     @Transactional
     public String procesarMensaje(String phone, String message) {
@@ -70,14 +72,29 @@ public class BotService {
     @Async
     public void procesarYResponder(String phone, String text) {
         try {
-            String response = procesarMensaje(phone, text);
-            if (response != null) {
-                whatsappService.sendMessage(phone, response);
+            UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+            String respuestaTexto = procesarMensaje(phone, text);
+            BotState estadoDestino = sesion.getCurrentState();
+
+            if (estadoDestino.getTemplateName() != null && !estadoDestino.getTemplateName().isEmpty()) {
+
+                whatsappService.sendTemplate(phone, estadoDestino.getTemplateName());
+
+            } else {
+                if (respuestaTexto != null) {
+                    whatsappService.sendMessage(phone, respuestaTexto);
+                }
             }
+
+            if (estadoDestino.getImageUrl() != null) {
+                whatsappService.sendImage(phone, estadoDestino.getImageUrl());
+            }
+
         } catch (Exception e) {
-            log.error("Error en procesamiento asíncrono para {}: {}", phone, e.getMessage());
+            log.error("Error en procesamiento asíncrono: {}", e.getMessage());
         }
     }
+
     private String resetearAlMenuInicial(UsuarioSesion sesion) {
         BotState estadoInicial = usuarioSesionService.obtenerEstadoInicial();
         sesion.setCurrentState(estadoInicial);
@@ -88,16 +105,39 @@ public class BotService {
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
         if (mensaje == null) return "";
-
         String resultado = mensaje;
-        if (sesion.getSector() != null) {
-            String nombreSector = (sesion.getSector().getName() != null) ? sesion.getSector().getName() : "tu zona";
-            String linkSector = (sesion.getSector().getCalendarLink() != null) ? sesion.getSector().getCalendarLink() : "";
+        SessionData data = sesion.getTempData();
 
-            resultado = resultado
-                    .replace("{nombre}", nombreSector)
-                    .replace("{link}", linkSector);
+        String nombreParaReemplazar = null;
+        String linkParaReemplazar = "";
+
+        if (sesion.getSector() != null) {
+            nombreParaReemplazar = sesion.getSector().getName();
+            linkParaReemplazar = sesion.getSector().getCalendarLink();
+        } else if (data != null && data.getPendingSectorId() != null) {
+            try {
+                Sector sectorPendiente = sectorService.findById(data.getPendingSectorId());
+                nombreParaReemplazar = sectorPendiente.getName();
+                linkParaReemplazar = sectorPendiente.getCalendarLink();
+            } catch (Exception e) {
+                log.warn("No se pudo precargar el sector pendiente para las etiquetas");
+            }
         }
+
+        if (nombreParaReemplazar != null) {
+            resultado = resultado.replace("{nombre}", nombreParaReemplazar);
+        } else {
+            resultado = resultado.replace("{nombre}", "tu zona");
+        }
+
+        if (linkParaReemplazar != null) {
+            resultado = resultado.replace("{link}", linkParaReemplazar);
+        }
+
+        if (data != null && "true".equals(data.getExtraInfo().get("error_menu"))) {
+            resultado = "⚠️ *Opción no válida.*\n" + resultado;
+        }
+
         return resultado;
     }
 

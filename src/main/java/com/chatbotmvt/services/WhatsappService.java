@@ -48,8 +48,7 @@ public class WhatsappService {
     }
 
     public void sendTemplate(String phone, String templateName) {
-
-        log.info("📤 Enviando template [{}] a [{}]", templateName, phone);
+        log.info("📤 Enviando plantilla [{}] a [{}]", templateName, phone);
 
         var body = Map.of(
                 "messaging_product", "whatsapp",

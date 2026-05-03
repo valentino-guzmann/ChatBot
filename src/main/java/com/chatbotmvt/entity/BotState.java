@@ -21,6 +21,9 @@ public class BotState {
     @Column(columnDefinition = "TEXT")
     private String message;
 
+    private String templateName;
+    private String imageUrl;
+
     @Enumerated(EnumType.STRING)
     private TipoEstado type;
 }
