@@ -36,8 +36,14 @@ public class ActionHandler implements BotActionHandler {
     }
 
     private boolean requiereZona(String tipo) {
-        return "RIEGO".equals(tipo) || "ESCOMBROS".equals(tipo) ||
-                "DESMALEZADO".equals(tipo) || "BARRIDO".equals(tipo) ||
-                "BOLSONES".equals(tipo) || "DESPERDICIOS".equals(tipo);
+        if (tipo == null) return false;
+
+        return tipo.equals("RIEGO") ||
+                tipo.equals("ESCOMBROS") ||
+                tipo.equals("DESMALEZADO") ||
+                tipo.equals("BARRIDO") ||
+                tipo.equals("BOLSONES") ||
+                tipo.equals("DESPERDICIOS") ||
+                tipo.equals("BOLSONES/DESPERDICIOS");
     }
 }
