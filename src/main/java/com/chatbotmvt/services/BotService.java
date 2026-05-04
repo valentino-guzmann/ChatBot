@@ -84,11 +84,11 @@ public class BotService {
 
             if (respuestaTexto != null) {
                 whatsappService.sendMessage(phone, respuestaTexto);
-                Thread.sleep(1000); // Pausa para que no lleguen desordenados
+                Thread.sleep(1000);
             }
 
             if (estadoActual.getTemplateName() != null) {
-                whatsappService.sendTemplate(phone, estadoActual.getTemplateName());
+                whatsappService.sendTemplate(phone, estadoActual.getTemplateName(),estadoActual.getImageUrl());
             }
 
         } catch (Exception e) {

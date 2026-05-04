@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -36,16 +37,31 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendTemplate(String phone, String templateName) {
+    public void sendTemplate(String phone, String templateName, String imageUrl) {
+        Map<String, Object> templateData = new java.util.HashMap<>(Map.of(
+                "name", templateName,
+                "language", Map.of("code", "es_AR")
+        ));
+
+        if (imageUrl != null && !imageUrl.isBlank()) {
+            templateData.put("components", List.of(
+                    Map.of(
+                            "type", "header",
+                            "parameters", List.of(
+                                    Map.of(
+                                            "type", "image",
+                                            "image", Map.of("link", imageUrl)
+                                    )
+                            )
+                    )
+            ));
+        }
 
         var body = Map.of(
                 "messaging_product", "whatsapp",
                 "to", formatPhone(phone),
                 "type", "template",
-                "template", Map.of(
-                        "name", templateName,
-                        "language", Map.of("code", "es_AR")
-                )
+                "template", templateData
         );
 
         execute(body);
