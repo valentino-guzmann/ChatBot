@@ -84,7 +84,6 @@ public class BotService {
 
             if (respuestaTexto != null) {
                 whatsappService.sendMessage(phone, respuestaTexto);
-                Thread.sleep(1000);
             }
 
             if (estadoActual.getTemplateName() != null) {
