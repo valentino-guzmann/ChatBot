@@ -8,6 +8,7 @@ import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.handlers.ActionHandlerFactory;
 import com.chatbotmvt.handlers.MenuHandler;
 import com.chatbotmvt.repository.BotStateRepository;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -29,6 +30,14 @@ public class BotService {
     private final WhatsappService whatsappService;
     private final SectorService sectorService;
 
+    // 🔥 Cache simple (evita query repetida)
+    private BotState cachedState21;
+
+    @PostConstruct
+    public void init() {
+        cachedState21 = botStateRepository.findById(21L).orElse(null);
+    }
+
     @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
         try {
@@ -37,12 +46,16 @@ public class BotService {
             RespuestaBot resultado = ejecutarLogicaYGuardar(phone, text);
 
             if (resultado.templateName() != null) {
-                log.debug("Enviando template: {}", resultado.templateName());
-                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId());
-                Thread.sleep(400);
-            }
 
-            if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
+                whatsappService.sendTemplate(
+                        phone,
+                        resultado.templateName(),
+                        resultado.mediaId(),
+                        resultado.mensajeTexto()
+                );
+
+            } else if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
+
                 whatsappService.sendMessage(phone, resultado.mensajeTexto());
             }
 
@@ -53,6 +66,7 @@ public class BotService {
 
     @Transactional
     public RespuestaBot ejecutarLogicaYGuardar(String phone, String text) {
+
         UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
         if (sesion.getTempData() == null) {
@@ -73,10 +87,12 @@ public class BotService {
     }
 
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
+
         BotState estadoActual = sesion.getCurrentState();
         String input = (message == null) ? "" : message.trim();
 
-        log.debug("Procesando [{}]. Estado: [{}]. Input: [{}]", sesion.getPhone(), estadoActual.getName(), input);
+        log.debug("Procesando [{}]. Estado: [{}]. Input: [{}]",
+                sesion.getPhone(), estadoActual.getName(), input);
 
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             return resetearAlMenuInicial(sesion);
@@ -85,8 +101,8 @@ public class BotService {
         Optional<BotFlowRule> ruleOpt = botFlowRuleService.find(estadoActual, input);
 
         if (ruleOpt.isPresent()) {
-            BotFlowRule rule = ruleOpt.get();
 
+            BotFlowRule rule = ruleOpt.get();
             sesion.setCurrentState(rule.getNextState());
 
             String customResponse = actionHandlerFactory.getHandler(rule.getActionType())
@@ -114,7 +130,9 @@ public class BotService {
     }
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
+
         if (mensaje == null) return "";
+
         String resultado = mensaje;
         SessionData data = sesion.getTempData();
 
@@ -124,13 +142,15 @@ public class BotService {
         if (sesion.getSector() != null) {
             nombreSector = sesion.getSector().getName();
             linkSector = sesion.getSector().getCalendarLink();
+
         } else if (data != null && data.getPendingSectorId() != null) {
+
             try {
                 Sector sectorPendiente = sectorService.findById(data.getPendingSectorId());
                 nombreSector = sectorPendiente.getName();
                 linkSector = sectorPendiente.getCalendarLink();
             } catch (Exception e) {
-                log.warn("No se pudo precargar sector pendiente para etiquetas");
+                log.warn("No se pudo precargar sector pendiente");
             }
         }
 
@@ -145,10 +165,16 @@ public class BotService {
     }
 
     private void verificarTransicionesEspeciales(UsuarioSesion sesion) {
+
         if (sesion.getSector() != null && sesion.getCurrentState() != null) {
+
             Long stateId = sesion.getCurrentState().getId();
+
             if (Long.valueOf(8).equals(stateId) || Long.valueOf(9).equals(stateId)) {
-                botStateRepository.findById(21L).ifPresent(sesion::setCurrentState);
+
+                if (cachedState21 != null) {
+                    sesion.setCurrentState(cachedState21);
+                }
             }
         }
     }

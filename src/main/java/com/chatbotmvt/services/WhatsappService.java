@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,15 +39,16 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendTemplate(String phone, String templateName, String mediaId) {
+    public void sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
 
-        Map<String, Object> templateData = new java.util.HashMap<>(Map.of(
-                "name", templateName,
-                "language", Map.of("code", "es_AR")
-        ));
+        Map<String, Object> templateData = new HashMap<>();
+        templateData.put("name", templateName);
+        templateData.put("language", Map.of("code", "es_AR"));
+
+        List<Map<String, Object>> components = new ArrayList<>();
 
         if (mediaId != null && !mediaId.isBlank()) {
-            templateData.put("components", List.of(
+            components.add(
                     Map.of(
                             "type", "header",
                             "parameters", List.of(
@@ -55,7 +58,25 @@ public class WhatsappService {
                                     )
                             )
                     )
-            ));
+            );
+        }
+
+        if (bodyText != null && !bodyText.isBlank()) {
+            components.add(
+                    Map.of(
+                            "type", "body",
+                            "parameters", List.of(
+                                    Map.of(
+                                            "type", "text",
+                                            "text", bodyText
+                                    )
+                            )
+                    )
+            );
+        }
+
+        if (!components.isEmpty()) {
+            templateData.put("components", components);
         }
 
         var body = Map.of(
