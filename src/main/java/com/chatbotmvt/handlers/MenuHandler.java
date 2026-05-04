@@ -16,6 +16,11 @@ public class MenuHandler {
 
     public void handle(UsuarioSesion sesion, String message) {
         var estadoActual = sesion.getCurrentState();
+
+        if (sesion.getTempData() == null) {
+            sesion.setTempData(new SessionData());
+        }
+
         SessionData data = sesion.getTempData();
 
         var opcionOpt = botOpcionService.obtenerEstadoYOpcion(estadoActual, message);
@@ -25,7 +30,9 @@ public class MenuHandler {
 
             sesion.setCurrentState(opcionOpt.get().getNextState());
 
-            data.getExtraInfo().remove("error_menu");
+            if (data.getExtraInfo() != null) {
+                data.getExtraInfo().remove("error_menu");
+            }
 
         } else {
             if (message.matches("\\d+")) {
