@@ -37,20 +37,21 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendTemplate(String phone, String templateName, String imageUrl) {
+    public void sendTemplate(String phone, String templateName, String mediaId) {
+
         Map<String, Object> templateData = new java.util.HashMap<>(Map.of(
                 "name", templateName,
                 "language", Map.of("code", "es_AR")
         ));
 
-        if (imageUrl != null && !imageUrl.isBlank()) {
+        if (mediaId != null && !mediaId.isBlank()) {
             templateData.put("components", List.of(
                     Map.of(
                             "type", "header",
                             "parameters", List.of(
                                     Map.of(
                                             "type", "image",
-                                            "image", Map.of("link", imageUrl)
+                                            "image", Map.of("id", mediaId)
                                     )
                             )
                     )

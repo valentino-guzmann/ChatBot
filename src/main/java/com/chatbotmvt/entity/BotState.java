@@ -22,7 +22,7 @@ public class BotState {
     private String message;
 
     private String templateName;
-    private String imageUrl;
+    private String mediaId;
 
     @Enumerated(EnumType.STRING)
     private TipoEstado type;

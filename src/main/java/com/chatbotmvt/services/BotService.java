@@ -38,8 +38,7 @@ public class BotService {
 
             if (resultado.templateName() != null) {
                 log.debug("Enviando template: {}", resultado.templateName());
-                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.imageUrl());
-                // Pausa mínima para asegurar que WhatsApp procese el orden en el móvil
+                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId());
                 Thread.sleep(400);
             }
 
@@ -69,7 +68,7 @@ public class BotService {
         return new RespuestaBot(
                 mensajeParaEnviar,
                 sesion.getCurrentState().getTemplateName(),
-                sesion.getCurrentState().getImageUrl()
+                sesion.getCurrentState().getMediaId()
         );
     }
 
@@ -135,11 +134,9 @@ public class BotService {
             }
         }
 
-        // Reemplazos seguros
         resultado = resultado.replace("{nombre}", nombreSector);
         resultado = resultado.replace("{link}", linkSector != null ? linkSector : "");
 
-        // Mostrar advertencia si hubo error de menú
         if (data != null && "true".equals(data.getExtraInfo().get("error_menu"))) {
             resultado = "⚠️ *Opción no válida.*\n" + resultado;
         }
@@ -156,5 +153,5 @@ public class BotService {
         }
     }
 
-    private record RespuestaBot(String mensajeTexto, String templateName, String imageUrl) {}
+    private record RespuestaBot(String mensajeTexto, String templateName, String mediaId) {}
 }
