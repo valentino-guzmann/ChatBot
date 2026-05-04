@@ -29,7 +29,7 @@ public class BotService {
     private final WhatsappService whatsappService;
     private final SectorService sectorService;
 
-    @Async("getAsyncExecutor")
+    @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
         try {
             log.info("Iniciando procesamiento asíncrono para: {}", phone);
