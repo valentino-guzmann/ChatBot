@@ -24,6 +24,9 @@ public class CreateReclamoActionHandler implements BotActionHandler {
     public String execute(UsuarioSesion sesion, BotFlowRule rule, String input) {
         SessionData data = sesion.getTempData();
 
+        System.out.println("TEMP DATA: direccion={}, referencia={}" +
+                sesion.getTempData().getDireccion()+
+                sesion.getTempData().getReferencia());
         String descripcionFinal = String.format("%s. Ref: %s",
                 data.getDireccion() != null ? data.getDireccion() : "",
                 data.getReferencia() != null ? data.getReferencia() : ""

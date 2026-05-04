@@ -82,24 +82,25 @@ public class BotService {
     }
 
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
-
-        BotState estadoActual = sesion.getCurrentState();
+        BotState estadoOrigen = sesion.getCurrentState();
         String input = (message == null) ? "" : message.trim();
 
-        log.debug("Procesando [{}]. Estado: [{}]. Input: [{}]",
-                sesion.getPhone(), estadoActual.getName(), input);
+        log.debug("Procesando [{}]. Estado Origen: [{}]. Input: [{}]",
+                sesion.getPhone(), estadoOrigen.getName(), input);
 
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             return resetearAlMenuInicial(sesion);
         }
 
-        Optional<BotFlowRule> ruleOpt = botFlowRuleService.find(estadoActual, input);
+        Optional<BotFlowRule> ruleOpt = botFlowRuleService.find(estadoOrigen, input);
 
         if (ruleOpt.isPresent()) {
-
             BotFlowRule rule = ruleOpt.get();
 
-            // ⚡ usar cache para nextState
+            String customResponse = actionHandlerFactory.getHandler(rule.getActionType())
+                    .map(handler -> handler.execute(sesion, rule, input))
+                    .orElse(null);
+
             BotState nextState = botStateCache.get(
                     rule.getNextState().getId(),
                     id -> botStateRepository.findById(id).orElse(null)
@@ -107,11 +108,8 @@ public class BotService {
 
             if (nextState != null) {
                 sesion.setCurrentState(nextState);
+                log.debug("Transición de estado: [{}] -> [{}]", estadoOrigen.getName(), nextState.getName());
             }
-
-            String customResponse = actionHandlerFactory.getHandler(rule.getActionType())
-                    .map(handler -> handler.execute(sesion, rule, input))
-                    .orElse(null);
 
             if (customResponse != null) {
                 return reemplazarEtiquetas(customResponse, sesion);
