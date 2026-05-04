@@ -73,6 +73,8 @@ public class WhatsappService {
         log.debug("🚀 Ejecutando request a WhatsApp API");
 
         try {
+            long start = System.currentTimeMillis();
+
             restClient.post()
                     .uri("/{id}/messages", phoneNumberId)
                     .header("Authorization", "Bearer " + accessToken)
@@ -80,7 +82,10 @@ public class WhatsappService {
                     .retrieve()
                     .toBodilessEntity();
 
+            long end = System.currentTimeMillis();
             log.info("✅ Mensaje enviado correctamente");
+
+            log.info("⏱️ Tiempo API WhatsApp: {} ms", (end - start));
 
         } catch (Exception e) {
 
