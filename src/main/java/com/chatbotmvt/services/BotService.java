@@ -40,8 +40,32 @@ public class BotService {
 
     @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
+
         try {
             log.info("Iniciando procesamiento asíncrono para: {}", phone);
+
+            UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+
+            boolean esPrimerIngreso =
+                    sesion.getSector() == null &&
+                            (text == null || text.isBlank());
+
+            boolean esEstadoInicial =
+                    sesion.getCurrentState() != null &&
+                            sesion.getCurrentState().getId().equals(1L); // 👈 ajusta esto
+
+            if (esPrimerIngreso && esEstadoInicial) {
+
+                log.info("⚡ Precarga de imagen (primer ingreso)");
+
+                whatsappService.sendTemplate(
+                        phone,
+                        sesion.getCurrentState().getTemplateName(),
+                        sesion.getCurrentState().getMediaId()
+                );
+
+                return;
+            }
 
             RespuestaBot resultado = ejecutarLogicaYGuardar(phone, text);
 
