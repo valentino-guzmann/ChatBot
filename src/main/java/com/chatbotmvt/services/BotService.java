@@ -8,6 +8,7 @@ import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.handlers.ActionHandlerFactory;
 import com.chatbotmvt.handlers.MenuHandler;
 import com.chatbotmvt.repository.BotStateRepository;
+import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -28,6 +29,9 @@ public class BotService {
     private final BotStateRepository botStateRepository;
     private final WhatsappService whatsappService;
     private final SectorService sectorService;
+
+    private final Cache<Long, BotState> botStateCache;
+    private final Cache<Long, Sector> sectorCache;
 
     @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
@@ -94,7 +98,16 @@ public class BotService {
         if (ruleOpt.isPresent()) {
 
             BotFlowRule rule = ruleOpt.get();
-            sesion.setCurrentState(rule.getNextState());
+
+            // ⚡ usar cache para nextState
+            BotState nextState = botStateCache.get(
+                    rule.getNextState().getId(),
+                    id -> botStateRepository.findById(id).orElse(null)
+            );
+
+            if (nextState != null) {
+                sesion.setCurrentState(nextState);
+            }
 
             String customResponse = actionHandlerFactory.getHandler(rule.getActionType())
                     .map(handler -> handler.execute(sesion, rule, input))
@@ -114,10 +127,18 @@ public class BotService {
     }
 
     private String resetearAlMenuInicial(UsuarioSesion sesion) {
+
         BotState estadoInicial = usuarioSesionService.obtenerEstadoInicial();
-        sesion.setCurrentState(estadoInicial);
+
+        BotState cached = botStateCache.get(
+                estadoInicial.getId(),
+                id -> botStateRepository.findById(id).orElse(estadoInicial)
+        );
+
+        sesion.setCurrentState(cached);
         sesion.setTempData(new SessionData());
-        return reemplazarEtiquetas(estadoInicial.getMessage(), sesion);
+
+        return reemplazarEtiquetas(cached.getMessage(), sesion);
     }
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
@@ -137,9 +158,14 @@ public class BotService {
         } else if (data != null && data.getPendingSectorId() != null) {
 
             try {
-                Sector sectorPendiente = sectorService.findById(data.getPendingSectorId());
+                Sector sectorPendiente = sectorCache.get(
+                        data.getPendingSectorId(),
+                        id -> sectorService.findById(id)
+                );
+
                 nombreSector = sectorPendiente.getName();
                 linkSector = sectorPendiente.getCalendarLink();
+
             } catch (Exception e) {
                 log.warn("No se pudo precargar sector pendiente");
             }
@@ -162,7 +188,15 @@ public class BotService {
             Long stateId = sesion.getCurrentState().getId();
 
             if (Long.valueOf(8).equals(stateId) || Long.valueOf(9).equals(stateId)) {
-                botStateRepository.findById(21L).ifPresent(sesion::setCurrentState);
+
+                BotState state21 = botStateCache.get(
+                        21L,
+                        id -> botStateRepository.findById(id).orElse(null)
+                );
+
+                if (state21 != null) {
+                    sesion.setCurrentState(state21);
+                }
             }
         }
     }
