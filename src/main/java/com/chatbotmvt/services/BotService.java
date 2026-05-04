@@ -8,7 +8,6 @@ import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.handlers.ActionHandlerFactory;
 import com.chatbotmvt.handlers.MenuHandler;
 import com.chatbotmvt.repository.BotStateRepository;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -30,14 +29,6 @@ public class BotService {
     private final WhatsappService whatsappService;
     private final SectorService sectorService;
 
-    // 🔥 Cache simple (evita query repetida)
-    private BotState cachedState21;
-
-    @PostConstruct
-    public void init() {
-        cachedState21 = botStateRepository.findById(21L).orElse(null);
-    }
-
     @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
 
@@ -46,15 +37,8 @@ public class BotService {
 
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-            boolean esPrimerIngreso =
-                    sesion.getSector() == null &&
-                            (text == null || text.isBlank());
-
-            boolean esEstadoInicial =
-                    sesion.getCurrentState() != null &&
-                            sesion.getCurrentState().getId().equals(1L); // 👈 ajusta esto
-
-            if (esPrimerIngreso && esEstadoInicial) {
+            // 🚀 PRE-CARGA INTELIGENTE
+            if (debePrecargar(sesion, text)) {
 
                 log.info("⚡ Precarga de imagen (primer ingreso)");
 
@@ -64,9 +48,10 @@ public class BotService {
                         sesion.getCurrentState().getMediaId()
                 );
 
-                return;
+                return; // 🔥 evita doble ejecución
             }
 
+            // 🔄 Flujo normal
             RespuestaBot resultado = ejecutarLogicaYGuardar(phone, text);
 
             if (resultado.templateName() != null) {
@@ -85,6 +70,33 @@ public class BotService {
         } catch (Exception e) {
             log.error("Error crítico en BotService: {}", e.getMessage(), e);
         }
+    }
+
+    private boolean debePrecargar(UsuarioSesion sesion, String text) {
+
+        boolean sinZona = sesion.getSector() == null;
+
+        boolean esEstadoInicial =
+                sesion.getCurrentState() != null &&
+                        sesion.getCurrentState().getId().equals(1L); // 👈 ajusta si tu ID cambia
+
+        boolean esSaludo = esSaludo(text);
+
+        return sinZona && esEstadoInicial && esSaludo;
+    }
+
+    private boolean esSaludo(String text) {
+
+        if (text == null) return true;
+
+        String t = text.trim().toLowerCase();
+
+        return t.isBlank() ||
+                t.equals("hola") ||
+                t.equals("buenas") ||
+                t.equals("hi") ||
+                t.equals("menu") ||
+                t.equals("inicio");
     }
 
     @Transactional
@@ -194,10 +206,7 @@ public class BotService {
             Long stateId = sesion.getCurrentState().getId();
 
             if (Long.valueOf(8).equals(stateId) || Long.valueOf(9).equals(stateId)) {
-
-                if (cachedState21 != null) {
-                    sesion.setCurrentState(cachedState21);
-                }
+                botStateRepository.findById(21L).ifPresent(sesion::setCurrentState);
             }
         }
     }
