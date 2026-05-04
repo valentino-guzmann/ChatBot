@@ -2,43 +2,53 @@ package com.chatbotmvt.handlers;
 
 import com.chatbotmvt.dto.SessionData;
 import com.chatbotmvt.entity.BotFlowRule;
-import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
-import com.chatbotmvt.repository.BotStateRepository;
 import com.chatbotmvt.services.ReclamoService;
-import com.chatbotmvt.services.WhatsappService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 public class CreateReclamoActionHandler implements BotActionHandler {
+
     private final ReclamoService reclamoService;
-    private final BotStateRepository botStateRepository;
-    private final WhatsappService whatsappService;
 
     @Override
-    public String getActionType() { return "CREATE_RECLAMO"; }
+    public String getActionType() {
+        return "CREATE_RECLAMO";
+    }
 
     @Override
     public String execute(UsuarioSesion sesion, BotFlowRule rule, String input) {
+
         SessionData data = sesion.getTempData();
 
-        String descripcionFinal = String.format("%s. Ref: %s",
-                data.getDireccion() != null ? data.getDireccion() : "",
-                data.getReferencia() != null ? data.getReferencia() : ""
-        );
+        if (data == null) {
+            return "❌ Error: no hay datos del reclamo.";
+        }
+
+        if (data.getTipoReclamo() == null || data.getTipoReclamo().isBlank()) {
+            return "❌ Falta el tipo de reclamo.";
+        }
+
+        if (data.getDireccion() == null || data.getDireccion().isBlank()) {
+            return "❌ Falta la dirección. Volvé a ingresarla.";
+        }
+
+        if (data.getReferencia() == null || data.getReferencia().isBlank()) {
+            data.setReferencia("Sin referencia");
+        }
 
         reclamoService.crearReclamo(
                 sesion.getPhone(),
                 data.getTipoReclamo(),
-                descripcionFinal.trim(),
+                data,
                 sesion.getSector()
         );
 
-        SessionData nuevoData = new SessionData();
-        sesion.setTempData(nuevoData);
+        // 🔥 limpiar sesión después de crear
+        sesion.setTempData(new SessionData());
 
-        return null;
+        return "✅ ¡Tu reclamo ha sido registrado con éxito!";
     }
 }
