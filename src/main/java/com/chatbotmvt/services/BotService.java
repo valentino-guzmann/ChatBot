@@ -29,19 +29,55 @@ public class BotService {
     private final WhatsappService whatsappService;
     private final SectorService sectorService;
 
+    @Async("getAsyncExecutor")
+    public void procesarYResponder(String phone, String text) {
+        try {
+            log.info("Iniciando procesamiento asíncrono para: {}", phone);
+
+            RespuestaBot resultado = ejecutarLogicaYGuardar(phone, text);
+
+            if (resultado.templateName() != null) {
+                log.debug("Enviando template: {}", resultado.templateName());
+                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.imageUrl());
+                // Pausa mínima para asegurar que WhatsApp procese el orden en el móvil
+                Thread.sleep(400);
+            }
+
+            if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
+                whatsappService.sendMessage(phone, resultado.mensajeTexto());
+            }
+
+        } catch (Exception e) {
+            log.error("Error crítico en BotService: {}", e.getMessage(), e);
+        }
+    }
+
     @Transactional
-    public String procesarMensaje(String phone, String message) {
+    public RespuestaBot ejecutarLogicaYGuardar(String phone, String text) {
         UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-        if (sesion.getTempData() != null) {
-            sesion.getTempData().getExtraInfo().remove("error_menu");
+        if (sesion.getTempData() == null) {
+            sesion.setTempData(new SessionData());
         }
 
+        sesion.getTempData().getExtraInfo().remove("error_menu");
+
+        String mensajeParaEnviar = procesarFlujoInterno(sesion, text);
+
+        usuarioSesionService.save(sesion);
+
+        return new RespuestaBot(
+                mensajeParaEnviar,
+                sesion.getCurrentState().getTemplateName(),
+                sesion.getCurrentState().getImageUrl()
+        );
+    }
+
+    private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
         BotState estadoActual = sesion.getCurrentState();
         String input = (message == null) ? "" : message.trim();
 
-        log.debug("Procesando mensaje para [{}]. Estado actual: [{}]. Input: [{}]",
-                phone, estadoActual.getName(), input);
+        log.debug("Procesando [{}]. Estado: [{}]. Input: [{}]", sesion.getPhone(), estadoActual.getName(), input);
 
         if (input.equalsIgnoreCase("menu") || input.equals("0")) {
             return resetearAlMenuInicial(sesion);
@@ -59,7 +95,6 @@ public class BotService {
                     .orElse(null);
 
             if (customResponse != null) {
-                usuarioSesionService.save(sesion);
                 return reemplazarEtiquetas(customResponse, sesion);
             }
 
@@ -69,42 +104,13 @@ public class BotService {
 
         verificarTransicionesEspeciales(sesion);
 
-        usuarioSesionService.save(sesion);
-
         return reemplazarEtiquetas(sesion.getCurrentState().getMessage(), sesion);
-    }
-
-    @Async
-    public void procesarYResponder(String phone, String text) {
-        try {
-            String respuestaTexto = procesarMensaje(phone, text);
-            UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
-            BotState estadoActual = sesion.getCurrentState();
-
-            if (estadoActual.getTemplateName() != null) {
-                log.debug("Enviando template prioritario: {}", estadoActual.getTemplateName());
-                whatsappService.sendTemplate(
-                        phone,
-                        estadoActual.getTemplateName(),
-                        estadoActual.getImageUrl()
-                );
-                Thread.sleep(500);
-            }
-
-            if (respuestaTexto != null && !respuestaTexto.isBlank()) {
-                whatsappService.sendMessage(phone, respuestaTexto);
-            }
-
-        } catch (Exception e) {
-            log.error("Error en procesarYResponder: {}", e.getMessage());
-        }
     }
 
     private String resetearAlMenuInicial(UsuarioSesion sesion) {
         BotState estadoInicial = usuarioSesionService.obtenerEstadoInicial();
         sesion.setCurrentState(estadoInicial);
         sesion.setTempData(new SessionData());
-        usuarioSesionService.save(sesion);
         return reemplazarEtiquetas(estadoInicial.getMessage(), sesion);
     }
 
@@ -113,32 +119,27 @@ public class BotService {
         String resultado = mensaje;
         SessionData data = sesion.getTempData();
 
-        String nombreParaReemplazar = null;
-        String linkParaReemplazar = "";
+        String nombreSector = "tu zona";
+        String linkSector = "";
 
         if (sesion.getSector() != null) {
-            nombreParaReemplazar = sesion.getSector().getName();
-            linkParaReemplazar = sesion.getSector().getCalendarLink();
+            nombreSector = sesion.getSector().getName();
+            linkSector = sesion.getSector().getCalendarLink();
         } else if (data != null && data.getPendingSectorId() != null) {
             try {
                 Sector sectorPendiente = sectorService.findById(data.getPendingSectorId());
-                nombreParaReemplazar = sectorPendiente.getName();
-                linkParaReemplazar = sectorPendiente.getCalendarLink();
+                nombreSector = sectorPendiente.getName();
+                linkSector = sectorPendiente.getCalendarLink();
             } catch (Exception e) {
-                log.warn("No se pudo precargar el sector pendiente para las etiquetas");
+                log.warn("No se pudo precargar sector pendiente para etiquetas");
             }
         }
 
-        if (nombreParaReemplazar != null) {
-            resultado = resultado.replace("{nombre}", nombreParaReemplazar);
-        } else {
-            resultado = resultado.replace("{nombre}", "tu zona");
-        }
+        // Reemplazos seguros
+        resultado = resultado.replace("{nombre}", nombreSector);
+        resultado = resultado.replace("{link}", linkSector != null ? linkSector : "");
 
-        if (linkParaReemplazar != null) {
-            resultado = resultado.replace("{link}", linkParaReemplazar);
-        }
-
+        // Mostrar advertencia si hubo error de menú
         if (data != null && "true".equals(data.getExtraInfo().get("error_menu"))) {
             resultado = "⚠️ *Opción no válida.*\n" + resultado;
         }
@@ -149,10 +150,11 @@ public class BotService {
     private void verificarTransicionesEspeciales(UsuarioSesion sesion) {
         if (sesion.getSector() != null && sesion.getCurrentState() != null) {
             Long stateId = sesion.getCurrentState().getId();
-
             if (Long.valueOf(8).equals(stateId) || Long.valueOf(9).equals(stateId)) {
                 botStateRepository.findById(21L).ifPresent(sesion::setCurrentState);
             }
         }
     }
+
+    private record RespuestaBot(String mensajeTexto, String templateName, String imageUrl) {}
 }
