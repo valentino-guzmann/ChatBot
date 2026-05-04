@@ -39,16 +39,14 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
+    public void sendTemplate(String phone, String templateName, String mediaId) {
 
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("name", templateName);
         templateData.put("language", Map.of("code", "es_AR"));
 
-        List<Map<String, Object>> components = new ArrayList<>();
-
         if (mediaId != null && !mediaId.isBlank()) {
-            components.add(
+            templateData.put("components", List.of(
                     Map.of(
                             "type", "header",
                             "parameters", List.of(
@@ -58,25 +56,7 @@ public class WhatsappService {
                                     )
                             )
                     )
-            );
-        }
-
-        if (bodyText != null && !bodyText.isBlank()) {
-            components.add(
-                    Map.of(
-                            "type", "body",
-                            "parameters", List.of(
-                                    Map.of(
-                                            "type", "text",
-                                            "text", bodyText
-                                    )
-                            )
-                    )
-            );
-        }
-
-        if (!components.isEmpty()) {
-            templateData.put("components", components);
+            ));
         }
 
         var body = Map.of(

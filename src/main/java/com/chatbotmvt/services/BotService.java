@@ -50,8 +50,7 @@ public class BotService {
                 whatsappService.sendTemplate(
                         phone,
                         resultado.templateName(),
-                        resultado.mediaId(),
-                        resultado.mensajeTexto()
+                        resultado.mediaId()
                 );
 
             } else if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
