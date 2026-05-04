@@ -11,23 +11,32 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class ActionHandler implements BotActionHandler {
+    private final BotStateRepository botStateRepository;
+
     @Override
     public String getActionType() { return "SET_TYPE"; }
 
     @Override
     public String execute(UsuarioSesion sesion, BotFlowRule rule, String input) {
         SessionData data = sesion.getTempData();
-        String tipo = rule.getActionValue();
+        String tipo = rule.getActionValue().trim().toUpperCase();
 
         data.setTipoReclamo(tipo);
 
-        if (sesion.getSector() == null) {
-            return switch (tipo) {
-                case "BOLSONES" -> "🛍️ *Bolsones verdes*\n\n📍 Info en: www.venadotuerto.gob.ar/bolsonesverdes\n\n📩 También podés consultarnos enviando dirección y referencia.\n\n🚫 IMPORTANTE: No colocar escombros.";
-                case "BARRIDO" -> "🧹 *Barrido*\n\nInfo de barrido...";
-                default -> "Has seleccionado " + tipo;
-            };
+        if (sesion.getSector() == null && requiereZona(tipo)) {
+            data.addExtra("PENDIENTE", "TRUE");
+
+            BotState elegirZona = botStateRepository.findById(14L).get();
+            sesion.setCurrentState(elegirZona);
+
+            return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
         }
+
         return null;
+    }
+
+    private boolean requiereZona(String tipo) {
+        return "RIEGO".equals(tipo) || "ESCOMBROS".equals(tipo) ||
+                "DESMALEZADO".equals(tipo) || "BARRIDO".equals(tipo);
     }
 }
