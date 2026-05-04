@@ -32,6 +32,11 @@ public class BotService {
     @Transactional
     public String procesarMensaje(String phone, String message) {
         UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+
+        if (sesion.getTempData() != null) {
+            sesion.getTempData().getExtraInfo().remove("error_menu");
+        }
+
         BotState estadoActual = sesion.getCurrentState();
         String input = (message == null) ? "" : message.trim();
 
