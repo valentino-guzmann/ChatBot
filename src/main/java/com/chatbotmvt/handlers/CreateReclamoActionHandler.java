@@ -36,15 +36,7 @@ public class CreateReclamoActionHandler implements BotActionHandler {
                 sesion.getSector()
         );
 
-        BotState exito = botStateRepository.findById(25L).get();
-        String msg = exito.getMessage();
-        if (sesion.getSector() != null) {
-            msg = msg.replace("{nombre}", sesion.getSector().getName());
-        }
-        whatsappService.sendMessage(sesion.getPhone(), msg);
-
         SessionData nuevoData = new SessionData();
-        nuevoData.setPendingSectorId(data.getPendingSectorId());
         sesion.setTempData(nuevoData);
 
         return null;
