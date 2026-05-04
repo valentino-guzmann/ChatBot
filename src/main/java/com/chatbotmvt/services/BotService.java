@@ -37,21 +37,24 @@ public class BotService {
 
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-            // 🚀 PRE-CARGA INTELIGENTE
             if (debePrecargar(sesion, text)) {
 
-                log.info("⚡ Precarga de imagen (primer ingreso)");
+                BotState estadoImagen = botStateRepository.findById(14L).orElse(null);
 
-                whatsappService.sendTemplate(
-                        phone,
-                        sesion.getCurrentState().getTemplateName(),
-                        sesion.getCurrentState().getMediaId()
-                );
+                if (estadoImagen != null && estadoImagen.getTemplateName() != null) {
 
-                return; // 🔥 evita doble ejecución
+                    log.info("⚡ Precarga usando estado de imagen");
+
+                    whatsappService.sendTemplate(
+                            phone,
+                            estadoImagen.getTemplateName(),
+                            estadoImagen.getMediaId()
+                    );
+                }
+
+                return;
             }
 
-            // 🔄 Flujo normal
             RespuestaBot resultado = ejecutarLogicaYGuardar(phone, text);
 
             if (resultado.templateName() != null) {
@@ -78,7 +81,7 @@ public class BotService {
 
         boolean esEstadoInicial =
                 sesion.getCurrentState() != null &&
-                        sesion.getCurrentState().getId().equals(1L); // 👈 ajusta si tu ID cambia
+                        sesion.getCurrentState().getId().equals(1L);
 
         boolean esSaludo = esSaludo(text);
 
