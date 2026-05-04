@@ -2,53 +2,50 @@ package com.chatbotmvt.handlers;
 
 import com.chatbotmvt.dto.SessionData;
 import com.chatbotmvt.entity.BotFlowRule;
+import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
+import com.chatbotmvt.repository.BotStateRepository;
 import com.chatbotmvt.services.ReclamoService;
+import com.chatbotmvt.services.WhatsappService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
 public class CreateReclamoActionHandler implements BotActionHandler {
-
     private final ReclamoService reclamoService;
+    private final BotStateRepository botStateRepository;
+    private final WhatsappService whatsappService;
 
     @Override
-    public String getActionType() {
-        return "CREATE_RECLAMO";
-    }
+    public String getActionType() { return "CREATE_RECLAMO"; }
 
     @Override
     public String execute(UsuarioSesion sesion, BotFlowRule rule, String input) {
-
         SessionData data = sesion.getTempData();
 
-        if (data == null) {
-            return "❌ Error: no hay datos del reclamo.";
-        }
-
-        if (data.getTipoReclamo() == null || data.getTipoReclamo().isBlank()) {
-            return "❌ Falta el tipo de reclamo.";
-        }
-
-        if (data.getDireccion() == null || data.getDireccion().isBlank()) {
-            return "❌ Falta la dirección. Volvé a ingresarla.";
-        }
-
-        if (data.getReferencia() == null || data.getReferencia().isBlank()) {
-            data.setReferencia("Sin referencia");
-        }
+        String descripcionFinal = String.format("%s. Ref: %s",
+                data.getDireccion() != null ? data.getDireccion() : "",
+                data.getReferencia() != null ? data.getReferencia() : ""
+        );
 
         reclamoService.crearReclamo(
                 sesion.getPhone(),
                 data.getTipoReclamo(),
-                data,
+                descripcionFinal.trim(),
                 sesion.getSector()
         );
 
-        // 🔥 limpiar sesión después de crear
+        BotState exito = botStateRepository.findById(25L).get();
+        String msg = exito.getMessage();
+        if (sesion.getSector() != null) {
+            msg = msg.replace("{nombre}", sesion.getSector().getName());
+        }
+        whatsappService.sendMessage(sesion.getPhone(), msg);
+
+        sesion.setCurrentState(botStateRepository.findById(1L).get());
         sesion.setTempData(new SessionData());
 
-        return "✅ ¡Tu reclamo ha sido registrado con éxito!";
+        return null;
     }
 }
