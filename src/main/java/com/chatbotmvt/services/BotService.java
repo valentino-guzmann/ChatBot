@@ -78,20 +78,25 @@ public class BotService {
     public void procesarYResponder(String phone, String text) {
         try {
             String respuestaTexto = procesarMensaje(phone, text);
-
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
             BotState estadoActual = sesion.getCurrentState();
 
-            if (respuestaTexto != null) {
+            if (estadoActual.getTemplateName() != null) {
+                log.debug("Enviando template prioritario: {}", estadoActual.getTemplateName());
+                whatsappService.sendTemplate(
+                        phone,
+                        estadoActual.getTemplateName(),
+                        estadoActual.getImageUrl()
+                );
+                Thread.sleep(500);
+            }
+
+            if (respuestaTexto != null && !respuestaTexto.isBlank()) {
                 whatsappService.sendMessage(phone, respuestaTexto);
             }
 
-            if (estadoActual.getTemplateName() != null) {
-                whatsappService.sendTemplate(phone, estadoActual.getTemplateName(),estadoActual.getImageUrl());
-            }
-
         } catch (Exception e) {
-            log.error("Error: {}", e.getMessage());
+            log.error("Error en procesarYResponder: {}", e.getMessage());
         }
     }
 
