@@ -37,27 +37,9 @@ public class BotService {
 
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-            if (debePrecargar(sesion, text)) {
+            RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
 
-                BotState estadoImagen = botStateRepository.findById(14L).orElse(null);
-
-                if (estadoImagen != null && estadoImagen.getTemplateName() != null) {
-
-                    log.info("⚡ Precarga usando estado de imagen");
-
-                    whatsappService.sendTemplate(
-                            phone,
-                            estadoImagen.getTemplateName(),
-                            estadoImagen.getMediaId()
-                    );
-                }
-
-                return;
-            }
-
-            RespuestaBot resultado = ejecutarLogicaYGuardar(phone, text);
-
-            if (resultado.templateName() != null) {
+            if (resultado.templateName() != null && !resultado.templateName().isBlank()) {
 
                 whatsappService.sendTemplate(
                         phone,
@@ -75,37 +57,8 @@ public class BotService {
         }
     }
 
-    private boolean debePrecargar(UsuarioSesion sesion, String text) {
-
-        boolean sinZona = sesion.getSector() == null;
-
-        boolean esEstadoInicial =
-                sesion.getCurrentState() != null &&
-                        sesion.getCurrentState().getId().equals(1L);
-
-        boolean esSaludo = esSaludo(text);
-
-        return sinZona && esEstadoInicial && esSaludo;
-    }
-
-    private boolean esSaludo(String text) {
-
-        if (text == null) return true;
-
-        String t = text.trim().toLowerCase();
-
-        return t.isBlank() ||
-                t.equals("hola") ||
-                t.equals("buenas") ||
-                t.equals("hi") ||
-                t.equals("menu") ||
-                t.equals("inicio");
-    }
-
     @Transactional
-    public RespuestaBot ejecutarLogicaYGuardar(String phone, String text) {
-
-        UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+    public RespuestaBot ejecutarLogicaYGuardar(UsuarioSesion sesion, String text) {
 
         if (sesion.getTempData() == null) {
             sesion.setTempData(new SessionData());
