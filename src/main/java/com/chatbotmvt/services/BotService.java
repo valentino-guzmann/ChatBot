@@ -63,21 +63,36 @@ public class BotService {
 
     @Transactional
     public RespuestaBot ejecutarLogicaYGuardar(UsuarioSesion sesion, String text) {
-
         if (sesion.getTempData() == null) {
             sesion.setTempData(new SessionData());
         }
 
-        sesion.getTempData().getExtraInfo().remove("error_menu");
+        SessionData data = sesion.getTempData();
+        data.getExtraInfo().remove("error_menu");
 
+        Long stateBefore = sesion.getCurrentState().getId();
         String mensajeParaEnviar = procesarFlujoInterno(sesion, text);
+        Long stateAfter = sesion.getCurrentState().getId();
+
+        String templateToHead = sesion.getCurrentState().getTemplateName();
+        String mediaId = sesion.getCurrentState().getMediaId();
+
+        if (templateToHead != null) {
+            String key = "media_sent_" + stateAfter;
+            if ("true".equals(data.getExtraInfo().get(key))) {
+                templateToHead = null;
+                mediaId = null;
+            } else {
+                data.addExtra(key, "true");
+            }
+        }
 
         usuarioSesionService.save(sesion);
 
         return new RespuestaBot(
                 mensajeParaEnviar,
-                sesion.getCurrentState().getTemplateName(),
-                sesion.getCurrentState().getMediaId()
+                templateToHead,
+                mediaId
         );
     }
 
