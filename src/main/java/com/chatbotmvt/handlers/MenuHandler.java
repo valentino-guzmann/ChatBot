@@ -13,8 +13,10 @@ import org.springframework.stereotype.Service;
 public class MenuHandler {
 
     private final BotOpcionService botOpcionService;
+    private final ActionHandlerFactory actionHandlerFactory;
 
     public void handle(UsuarioSesion sesion, String message) {
+
         var estadoActual = sesion.getCurrentState();
 
         if (sesion.getTempData() == null) {
@@ -26,23 +28,36 @@ public class MenuHandler {
         var opcionOpt = botOpcionService.obtenerEstadoYOpcion(estadoActual, message);
 
         if (opcionOpt.isPresent()) {
-            log.info("✅ Opción válida: [{}] seleccionada en estado [{}]", message, estadoActual.getName());
 
-            sesion.setCurrentState(opcionOpt.get().getNextState());
+            var opcion = opcionOpt.get();
 
+            log.info("✅ Opción válida: [{}] en estado [{}]", message, estadoActual.getName());
+
+            // 🔥 1. EJECUTAR ACCIÓN SI EXISTE
+            if (opcion.getActionType() != null && !opcion.getActionType().isBlank()) {
+
+                actionHandlerFactory.getHandler(opcion.getActionType())
+                        .ifPresent(handler -> handler.executeFromOption(sesion, opcion, message));
+            }
+
+            // 🔥 2. CAMBIAR ESTADO
+            sesion.setCurrentState(opcion.getNextState());
+
+            // 🔥 3. LIMPIAR ERROR
             if (data.getExtraInfo() != null) {
                 data.getExtraInfo().remove("error_menu");
             }
 
         } else {
-            if (message.matches("\\d+")) {
-                log.warn("❌ El usuario ingresó un número [{}] que no está en el menú", message);
 
+            if (message.matches("\\d+")) {
+                log.warn("❌ Opción inválida [{}] en estado [{}]", message, estadoActual.getName());
                 data.addExtra("error_menu", "true");
             } else {
-                log.info("💬 Texto libre recibido en menú (ignorando): {}", message);
+                log.info("💬 Texto libre ignorado en menú: {}", message);
             }
         }
+
         sesion.setTempData(data);
     }
 }

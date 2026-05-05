@@ -27,4 +27,10 @@ public class BotOpcion {
     @ManyToOne
     @JoinColumn(name = "next_state_id")
     private BotState nextState;
+
+    @Column(name = "action_type")
+    private String actionType;
+
+    @Column(name = "action_value")
+    private String actionValue;
 }
