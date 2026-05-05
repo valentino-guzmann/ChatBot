@@ -63,35 +63,22 @@ public class BotService {
 
     @Transactional
     public RespuestaBot ejecutarLogicaYGuardar(UsuarioSesion sesion, String text) {
+
         if (sesion.getTempData() == null) {
             sesion.setTempData(new SessionData());
         }
 
-        Long estadoAnteriorId = sesion.getCurrentState().getId();
+        sesion.getTempData().getExtraInfo().remove("error_menu");
 
-        String mensajeTexto = procesarFlujoInterno(sesion, text);
-
-        BotState estadoNuevo = sesion.getCurrentState();
-        Long estadoNuevoId = estadoNuevo.getId();
-        SessionData data = sesion.getTempData();
-
-        String templateToSend = null;
-        String mediaIdToSend = null;
-
-        if (estadoNuevo.getTemplateName() != null && !estadoNuevo.getTemplateName().isBlank()) {
-            String keySent = "IMG_SENT_" + estadoNuevoId;
-
-            if (!estadoAnteriorId.equals(estadoNuevoId) && !data.getExtraInfo().containsKey(keySent)) {
-                templateToSend = estadoNuevo.getTemplateName();
-                mediaIdToSend = estadoNuevo.getMediaId();
-
-                data.addExtra(keySent, "true");
-            }
-        }
+        String mensajeParaEnviar = procesarFlujoInterno(sesion, text);
 
         usuarioSesionService.save(sesion);
 
-        return new RespuestaBot(mensajeTexto, templateToSend, mediaIdToSend);
+        return new RespuestaBot(
+                mensajeParaEnviar,
+                sesion.getCurrentState().getTemplateName(),
+                sesion.getCurrentState().getMediaId()
+        );
     }
 
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
