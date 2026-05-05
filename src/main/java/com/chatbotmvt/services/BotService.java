@@ -101,25 +101,21 @@ public class BotService {
 
         if (ruleOpt.isPresent()) {
             BotFlowRule rule = ruleOpt.get();
-
             String customResponse = actionHandlerFactory.getHandler(rule.getActionType())
                     .map(handler -> handler.execute(sesion, rule, input))
                     .orElse(null);
 
-            BotState nextState = botStateCache.get(
-                    rule.getNextState().getId(),
-                    id -> botStateRepository.findById(id).orElse(null)
-            );
-
-            if (nextState != null) {
-                sesion.setCurrentState(nextState);
-                log.debug("Transición de estado: [{}] -> [{}]", estadoOrigen.getName(), nextState.getName());
+            if (sesion.getCurrentState().getId().equals(estadoOrigen.getId())) {
+                BotState nextState = botStateCache.get(
+                        rule.getNextState().getId(),
+                        id -> botStateRepository.findById(id).orElse(null)
+                );
+                if (nextState != null) {
+                    sesion.setCurrentState(nextState);
+                }
             }
 
-            if (customResponse != null) {
-                return reemplazarEtiquetas(customResponse, sesion);
-            }
-
+            if (customResponse != null) return reemplazarEtiquetas(customResponse, sesion);
         } else {
             menuHandler.handle(sesion, input);
         }

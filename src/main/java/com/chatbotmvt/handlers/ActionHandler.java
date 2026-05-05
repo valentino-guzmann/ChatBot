@@ -20,18 +20,15 @@ public class ActionHandler implements BotActionHandler {
     public String execute(UsuarioSesion sesion, BotFlowRule rule, String input) {
         SessionData data = sesion.getTempData();
         String tipo = rule.getActionValue().trim().toUpperCase();
-
         data.setTipoReclamo(tipo);
 
         if (sesion.getSector() == null && requiereZona(tipo)) {
-            data.addExtra("PENDIENTE", "TRUE");
-
             BotState elegirZona = botStateRepository.findById(14L).get();
             sesion.setCurrentState(elegirZona);
-
-            return "📍 Para procesar este pedido necesitamos identificar tu zona primero.\n\n" + elegirZona.getMessage();
+        } else {
+            BotState pedirDireccion = botStateRepository.findById(21L).get();
+            sesion.setCurrentState(pedirDireccion);
         }
-
         return null;
     }
 
