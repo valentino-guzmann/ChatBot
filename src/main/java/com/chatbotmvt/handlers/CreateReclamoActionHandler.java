@@ -14,8 +14,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class CreateReclamoActionHandler implements BotActionHandler {
     private final ReclamoService reclamoService;
-    private final BotStateRepository botStateRepository;
-    private final WhatsappService whatsappService;
 
     @Override
     public String getActionType() { return "CREATE_RECLAMO"; }
@@ -24,9 +22,6 @@ public class CreateReclamoActionHandler implements BotActionHandler {
     public String execute(UsuarioSesion sesion, BotFlowRule rule, String input) {
         SessionData data = sesion.getTempData();
 
-        System.out.println("TEMP DATA: direccion={}, referencia={}" +
-                sesion.getTempData().getDireccion()+
-                sesion.getTempData().getReferencia());
         String descripcionFinal = String.format("%s. Ref: %s",
                 data.getDireccion() != null ? data.getDireccion() : "",
                 data.getReferencia() != null ? data.getReferencia() : ""
@@ -39,14 +34,6 @@ public class CreateReclamoActionHandler implements BotActionHandler {
                 sesion.getSector()
         );
 
-        BotState exito = botStateRepository.findById(25L).get();
-        String msg = exito.getMessage();
-        if (sesion.getSector() != null) {
-            msg = msg.replace("{nombre}", sesion.getSector().getName());
-        }
-        whatsappService.sendMessage(sesion.getPhone(), msg);
-
-        sesion.setCurrentState(botStateRepository.findById(1L).get());
         sesion.setTempData(new SessionData());
 
         return null;

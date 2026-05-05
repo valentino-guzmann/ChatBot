@@ -35,50 +35,55 @@ public class BotService {
 
     @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
-
         try {
-            log.info("Iniciando procesamiento asíncrono para: {}", phone);
-
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
-
             RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
 
-            if (resultado.templateName() != null && !resultado.templateName().isBlank()) {
+            if (resultado.templateName() != null) {
+                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId());
+            }
 
-                whatsappService.sendTemplate(
-                        phone,
-                        resultado.templateName(),
-                        resultado.mediaId()
-                );
-
-            } else if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
-
+            if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
                 whatsappService.sendMessage(phone, resultado.mensajeTexto());
             }
 
         } catch (Exception e) {
-            log.error("Error crítico en BotService: {}", e.getMessage(), e);
+            log.error("Error en BotService: {}", e.getMessage());
         }
     }
 
     @Transactional
     public RespuestaBot ejecutarLogicaYGuardar(UsuarioSesion sesion, String text) {
-
         if (sesion.getTempData() == null) {
             sesion.setTempData(new SessionData());
         }
 
-        sesion.getTempData().getExtraInfo().remove("error_menu");
+        Long estadoAnteriorId = sesion.getCurrentState().getId();
 
-        String mensajeParaEnviar = procesarFlujoInterno(sesion, text);
+        String mensajeTexto = procesarFlujoInterno(sesion, text);
+
+        BotState estadoNuevo = sesion.getCurrentState();
+        Long estadoNuevoId = estadoNuevo.getId();
+        SessionData data = sesion.getTempData();
+
+        String templateToSend = null;
+        String mediaIdToSend = null;
+
+        if (estadoNuevo.getTemplateName() != null && !estadoNuevo.getTemplateName().isBlank()) {
+            String keyFlag = "IMG_SENT_" + estadoNuevoId;
+
+            if (!estadoAnteriorId.equals(estadoNuevoId) && !data.getExtraInfo().containsKey(keyFlag)) {
+                templateToSend = estadoNuevo.getTemplateName();
+                mediaIdToSend = estadoNuevo.getMediaId();
+                data.addExtra(keyFlag, "true");
+            }
+        }
 
         usuarioSesionService.save(sesion);
 
-        return new RespuestaBot(
-                mensajeParaEnviar,
-                sesion.getCurrentState().getTemplateName(),
-                sesion.getCurrentState().getMediaId()
-        );
+        String mensajeFinal = reemplazarEtiquetas(mensajeTexto, sesion);
+
+        return new RespuestaBot(mensajeFinal, templateToSend, mediaIdToSend);
     }
 
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
