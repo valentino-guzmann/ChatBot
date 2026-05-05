@@ -67,26 +67,31 @@ public class BotService {
             sesion.setTempData(new SessionData());
         }
 
-        Long idEstadoAnterior = sesion.getCurrentState().getId();
+        Long estadoAnteriorId = sesion.getCurrentState().getId();
 
         String mensajeTexto = procesarFlujoInterno(sesion, text);
 
         BotState estadoNuevo = sesion.getCurrentState();
-        Long idEstadoNuevo = estadoNuevo.getId();
+        Long estadoNuevoId = estadoNuevo.getId();
+        SessionData data = sesion.getTempData();
 
-        String templateName = estadoNuevo.getTemplateName();
-        String mediaId = estadoNuevo.getMediaId();
+        String templateToSend = null;
+        String mediaIdToSend = null;
 
-        boolean haCambiadoDeEstado = !idEstadoAnterior.equals(idEstadoNuevo);
+        if (estadoNuevo.getTemplateName() != null && !estadoNuevo.getTemplateName().isBlank()) {
+            String keySent = "IMG_SENT_" + estadoNuevoId;
 
-        if (!haCambiadoDeEstado) {
-            templateName = null;
-            mediaId = null;
+            if (!estadoAnteriorId.equals(estadoNuevoId) && !data.getExtraInfo().containsKey(keySent)) {
+                templateToSend = estadoNuevo.getTemplateName();
+                mediaIdToSend = estadoNuevo.getMediaId();
+
+                data.addExtra(keySent, "true");
+            }
         }
 
         usuarioSesionService.save(sesion);
 
-        return new RespuestaBot(mensajeTexto, templateName, mediaId);
+        return new RespuestaBot(mensajeTexto, templateToSend, mediaIdToSend);
     }
 
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
