@@ -16,15 +16,24 @@ public class BotFlowRuleService {
     private final BotFlowRuleRepository repository;
     private final Cache<String, BotFlowRule> botFlowRuleCache;
 
-    public Optional<BotFlowRule> find(BotState state, String input) {
+    public Optional<BotFlowRule> findExact(BotState state, String input) {
 
-        String safe = input == null ? "" : input.trim();
-        String key = state.getId() + ":" + safe.toLowerCase();
+        String safe = input == null ? "" : input.trim().toLowerCase();
+        String key = "EXACT:" + state.getId() + ":" + safe;
 
         BotFlowRule rule = botFlowRuleCache.get(key, k ->
-                repository.findByStateAndInputPattern(state, safe)
-                        .or(() -> repository.findByStateAndInputPattern(state, "default"))
-                        .orElse(null)
+                repository.findByStateAndInputPattern(state, safe).orElse(null)
+        );
+
+        return Optional.ofNullable(rule);
+    }
+
+    public Optional<BotFlowRule> findDefault(BotState state) {
+
+        String key = "DEFAULT:" + state.getId();
+
+        BotFlowRule rule = botFlowRuleCache.get(key, k ->
+                repository.findByStateAndInputPattern(state, "default").orElse(null)
         );
 
         return Optional.ofNullable(rule);

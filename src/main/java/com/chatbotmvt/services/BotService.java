@@ -48,7 +48,7 @@ public class BotService {
             }
 
         } catch (Exception e) {
-            log.error("Error en BotService: {}", e.getMessage());
+            log.error("Error en BotService: {}", e.getMessage(), e);
         }
     }
 
@@ -58,75 +58,65 @@ public class BotService {
             sesion.setTempData(new SessionData());
         }
 
-        Long estadoAnteriorId = sesion.getCurrentState().getId();
-
         String mensajeTexto = procesarFlujoInterno(sesion, text);
-
-        BotState estadoNuevo = sesion.getCurrentState();
-        Long estadoNuevoId = estadoNuevo.getId();
-        SessionData data = sesion.getTempData();
-
-        String templateToSend = null;
-        String mediaIdToSend = null;
-
-        if (estadoNuevo.getTemplateName() != null && !estadoNuevo.getTemplateName().isBlank()) {
-            String keyFlag = "IMG_SENT_" + estadoNuevoId;
-
-            if (!estadoAnteriorId.equals(estadoNuevoId) && !data.getExtraInfo().containsKey(keyFlag)) {
-                templateToSend = estadoNuevo.getTemplateName();
-                mediaIdToSend = estadoNuevo.getMediaId();
-                data.addExtra(keyFlag, "true");
-            }
-        }
 
         usuarioSesionService.save(sesion);
 
         String mensajeFinal = reemplazarEtiquetas(mensajeTexto, sesion);
+
+        BotState estadoNuevo = sesion.getCurrentState();
+
+        String templateToSend = estadoNuevo.getTemplateName();
+        String mediaIdToSend = estadoNuevo.getMediaId();
 
         return new RespuestaBot(mensajeFinal, templateToSend, mediaIdToSend);
     }
 
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
         BotState estadoOrigen = sesion.getCurrentState();
-        String input = (message == null) ? "" : message.trim();
+        String input = (message == null) ? "" : message.trim().toLowerCase();
 
-        log.debug("Procesando [{}]. Estado Origen: [{}]. Input: [{}]",
-                sesion.getPhone(), estadoOrigen.getName(), input);
+        log.info("STATE [{}] INPUT [{}]", estadoOrigen.getId(), input);
 
-        if (input.equalsIgnoreCase("menu") || input.equals("0")) {
+        if (input.equals("menu") || input.equals("0")) {
             return resetearAlMenuInicial(sesion);
         }
 
-        Optional<BotFlowRule> ruleOpt = botFlowRuleService.find(estadoOrigen, input);
+        // 🔥 1. BUSCAR RULE EXACTA
+        Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
+
+        // 🔥 2. SI NO HAY → DEFAULT
+        if (ruleOpt.isEmpty()) {
+            ruleOpt = botFlowRuleService.findDefault(estadoOrigen);
+        }
 
         if (ruleOpt.isPresent()) {
             BotFlowRule rule = ruleOpt.get();
-            String customResponse = actionHandlerFactory.getHandler(rule.getActionType())
-                    .map(handler -> handler.execute(sesion, rule, input))
-                    .orElse(null);
 
-            if (sesion.getCurrentState().getId().equals(estadoOrigen.getId())) {
+            log.info("RULE MATCH → {}", rule.getId());
+
+            actionHandlerFactory.getHandler(rule.getActionType())
+                    .ifPresent(handler -> handler.execute(sesion, rule, input));
+
+            if (rule.getNextState() != null) {
                 BotState nextState = botStateCache.get(
                         rule.getNextState().getId(),
                         id -> botStateRepository.findById(id).orElse(null)
                 );
+
                 if (nextState != null) {
                     sesion.setCurrentState(nextState);
                 }
             }
 
-            if (customResponse != null) return reemplazarEtiquetas(customResponse, sesion);
         } else {
             menuHandler.handle(sesion, input);
         }
 
-        verificarTransicionesEspeciales(sesion);
-
-        return reemplazarEtiquetas(sesion.getCurrentState().getMessage(), sesion);
+        return sesion.getCurrentState().getMessage();
     }
 
     private String resetearAlMenuInicial(UsuarioSesion sesion) {
-
         BotState estadoInicial = usuarioSesionService.obtenerEstadoInicial();
 
         BotState cached = botStateCache.get(
@@ -137,14 +127,13 @@ public class BotService {
         sesion.setCurrentState(cached);
         sesion.setTempData(new SessionData());
 
-        return reemplazarEtiquetas(cached.getMessage(), sesion);
+        return cached.getMessage();
     }
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
 
         if (mensaje == null) return "";
 
-        String resultado = mensaje;
         SessionData data = sesion.getTempData();
 
         String nombreSector = "tu zona";
@@ -153,51 +142,16 @@ public class BotService {
         if (sesion.getSector() != null) {
             nombreSector = sesion.getSector().getName();
             linkSector = sesion.getSector().getCalendarLink();
-
-        } else if (data != null && data.getPendingSectorId() != null) {
-
-            try {
-                Sector sectorPendiente = sectorCache.get(
-                        data.getPendingSectorId(),
-                        id -> sectorService.findById(id)
-                );
-
-                nombreSector = sectorPendiente.getName();
-                linkSector = sectorPendiente.getCalendarLink();
-
-            } catch (Exception e) {
-                log.warn("No se pudo precargar sector pendiente");
-            }
         }
 
-        resultado = resultado.replace("{nombre}", nombreSector);
-        resultado = resultado.replace("{link}", linkSector != null ? linkSector : "");
+        mensaje = mensaje.replace("{nombre}", nombreSector);
+        mensaje = mensaje.replace("{link}", linkSector != null ? linkSector : "");
 
         if (data != null && "true".equals(data.getExtraInfo().get("error_menu"))) {
-            resultado = "⚠️ *Opción no válida.*\n" + resultado;
+            mensaje = "⚠️ Opción no válida\n" + mensaje;
         }
 
-        return resultado;
-    }
-
-    private void verificarTransicionesEspeciales(UsuarioSesion sesion) {
-
-        if (sesion.getSector() != null && sesion.getCurrentState() != null) {
-
-            Long stateId = sesion.getCurrentState().getId();
-
-            if (Long.valueOf(8).equals(stateId) || Long.valueOf(9).equals(stateId)) {
-
-                BotState state21 = botStateCache.get(
-                        21L,
-                        id -> botStateRepository.findById(id).orElse(null)
-                );
-
-                if (state21 != null) {
-                    sesion.setCurrentState(state21);
-                }
-            }
-        }
+        return mensaje;
     }
 
     private record RespuestaBot(String mensajeTexto, String templateName, String mediaId) {}

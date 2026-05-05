@@ -9,6 +9,4 @@ import java.util.Optional;
 public interface BotFlowRuleRepository extends JpaRepository<BotFlowRule, Long> {
 
     Optional<BotFlowRule> findByStateAndInputPattern(BotState state, String inputPattern);
-
-    Optional<BotFlowRule> findByStateAndInputPatternOrInputPattern(BotState state, String input, String fallback);
 }
