@@ -67,33 +67,26 @@ public class BotService {
             sesion.setTempData(new SessionData());
         }
 
-        SessionData data = sesion.getTempData();
-        data.getExtraInfo().remove("error_menu");
+        Long idEstadoAnterior = sesion.getCurrentState().getId();
 
-        Long stateBefore = sesion.getCurrentState().getId();
-        String mensajeParaEnviar = procesarFlujoInterno(sesion, text);
-        Long stateAfter = sesion.getCurrentState().getId();
+        String mensajeTexto = procesarFlujoInterno(sesion, text);
 
-        String templateToHead = sesion.getCurrentState().getTemplateName();
-        String mediaId = sesion.getCurrentState().getMediaId();
+        BotState estadoNuevo = sesion.getCurrentState();
+        Long idEstadoNuevo = estadoNuevo.getId();
 
-        if (templateToHead != null) {
-            String key = "media_sent_" + stateAfter;
-            if ("true".equals(data.getExtraInfo().get(key))) {
-                templateToHead = null;
-                mediaId = null;
-            } else {
-                data.addExtra(key, "true");
-            }
+        String templateName = estadoNuevo.getTemplateName();
+        String mediaId = estadoNuevo.getMediaId();
+
+        boolean haCambiadoDeEstado = !idEstadoAnterior.equals(idEstadoNuevo);
+
+        if (!haCambiadoDeEstado) {
+            templateName = null;
+            mediaId = null;
         }
 
         usuarioSesionService.save(sesion);
 
-        return new RespuestaBot(
-                mensajeParaEnviar,
-                templateToHead,
-                mediaId
-        );
+        return new RespuestaBot(mensajeTexto, templateName, mediaId);
     }
 
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
