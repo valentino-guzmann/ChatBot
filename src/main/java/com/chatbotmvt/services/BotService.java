@@ -40,7 +40,7 @@ public class BotService {
             RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
 
             if (resultado.templateName() != null) {
-                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId());
+                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId(), resultado.mensajeTexto());
             }
 
             if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
@@ -82,10 +82,8 @@ public class BotService {
             return resetearAlMenuInicial(sesion);
         }
 
-        // 🔥 1. BUSCAR RULE EXACTA
         Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
 
-        // 🔥 2. SI NO HAY → DEFAULT
         if (ruleOpt.isEmpty()) {
             ruleOpt = botFlowRuleService.findDefault(estadoOrigen);
         }

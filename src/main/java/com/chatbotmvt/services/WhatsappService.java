@@ -39,25 +39,35 @@ public class WhatsappService {
         execute(body);
     }
 
-    public void sendTemplate(String phone, String templateName, String mediaId) {
+    public void sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
+
+        log.info("📤 Enviando Template [{}] a [{}]", templateName, phone);
 
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("name", templateName);
         templateData.put("language", Map.of("code", "es_AR"));
 
+        List<Map<String, Object>> components = new ArrayList<>();
+
         if (mediaId != null && !mediaId.isBlank()) {
-            templateData.put("components", List.of(
-                    Map.of(
-                            "type", "header",
-                            "parameters", List.of(
-                                    Map.of(
-                                            "type", "image",
-                                            "image", Map.of("id", mediaId)
-                                    )
-                            )
+            components.add(Map.of(
+                    "type", "header",
+                    "parameters", List.of(
+                            Map.of("type", "image", "image", Map.of("id", mediaId))
                     )
             ));
         }
+
+        if (bodyText != null && !bodyText.isBlank()) {
+            components.add(Map.of(
+                    "type", "body",
+                    "parameters", List.of(
+                            Map.of("type", "text", "text", bodyText)
+                    )
+            ));
+        }
+
+        templateData.put("components", components);
 
         var body = Map.of(
                 "messaging_product", "whatsapp",
