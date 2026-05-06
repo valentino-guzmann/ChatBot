@@ -2,6 +2,7 @@ package com.chatbotmvt.handlers;
 
 import com.chatbotmvt.dto.SessionData;
 import com.chatbotmvt.entity.BotFlowRule;
+import com.chatbotmvt.entity.BotOpcion;
 import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.repository.BotStateRepository;
@@ -20,6 +21,15 @@ public class ResetReclamoActionHandler implements BotActionHandler {
 
     @Override
     public String execute(UsuarioSesion sesion, BotFlowRule rule, String input) {
+        return procesarReset(sesion);
+    }
+
+    @Override
+    public String executeFromOption(UsuarioSesion sesion, BotOpcion opcion, String input) {
+        return procesarReset(sesion);
+    }
+
+    private String procesarReset(UsuarioSesion sesion) {
         SessionData data = sesion.getTempData();
         String tipo = data.getTipoReclamo();
 
@@ -28,11 +38,14 @@ public class ResetReclamoActionHandler implements BotActionHandler {
                 "BARRIDO", 5L,
                 "RIEGO", 30L,
                 "ESCOMBROS", 31L,
+                "BOLSONES", 23L,
+                "DESPERDICIOS", 23L,
                 "BOLSONES/DESPERDICIOS", 23L
         );
 
-        Long nextStateId = mapaEstados.getOrDefault(tipo, 1L); // Si no lo encuentra, al menú
-        BotState nextState = botStateRepository.findById(nextStateId).orElseThrow();
+        Long nextStateId = mapaEstados.getOrDefault(tipo, 1L);
+        BotState nextState = botStateRepository.findById(nextStateId)
+                .orElseThrow(() -> new RuntimeException("Estado no encontrado: " + nextStateId));
 
         sesion.setCurrentState(nextState);
 
