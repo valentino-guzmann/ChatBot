@@ -19,7 +19,7 @@ public class AppendTextActionHandler implements BotActionHandler {
         SessionData data = sesion.getTempData();
         Long stateId = sesion.getCurrentState().getId();
 
-        if (stateId == 4L || stateId == 5L || stateId == 30L || stateId == 31L || stateId == 23L) {
+        if (stateId == 4L || stateId == 5L || stateId == 30L || stateId == 31L) {
             data.setDireccion(input);
         } else if (stateId == 6L) {
             data.setReferencia(input);
