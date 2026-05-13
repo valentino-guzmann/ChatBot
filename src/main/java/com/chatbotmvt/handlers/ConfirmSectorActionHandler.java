@@ -72,4 +72,4 @@ public class ConfirmSectorActionHandler implements BotActionHandler {
 
         return null;
     }
-}}
+}
