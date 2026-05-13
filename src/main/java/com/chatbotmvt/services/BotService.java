@@ -39,11 +39,14 @@ public class BotService {
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
             RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
 
-            if (resultado.templateName() != null) {
-                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId(), resultado.mensajeTexto());
+            if (resultado == null || resultado.mensajeTexto() == null || resultado.mensajeTexto().isBlank()) {
+                log.debug("No hay respuesta para enviar (Bot en modo silencioso o sin mensaje)");
+                return;
             }
 
-            if (resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
+            if (resultado.templateName() != null) {
+                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId(), resultado.mensajeTexto());
+            } else {
                 whatsappService.sendMessage(phone, resultado.mensajeTexto());
             }
 
@@ -80,6 +83,11 @@ public class BotService {
 
         if (input.equals("menu") || input.equals("0")) {
             return resetearAlMenuInicial(sesion);
+        }
+
+        if (estadoOrigen.getId() != null && estadoOrigen.getId() == 32L) {
+            log.info("🤫 Bot silenciado: Usuario en espera de operador. Ignorando mensaje.");
+            return null;
         }
 
         Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
