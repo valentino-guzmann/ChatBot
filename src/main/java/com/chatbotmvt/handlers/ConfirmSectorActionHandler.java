@@ -9,10 +9,12 @@ import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.repository.BotStateRepository;
 import com.chatbotmvt.services.SectorService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ConfirmSectorActionHandler implements BotActionHandler {
@@ -36,6 +38,8 @@ public class ConfirmSectorActionHandler implements BotActionHandler {
     private String procesarConfirmacionYSalto(UsuarioSesion sesion) {
         SessionData data = sesion.getTempData();
 
+        log.info("📋 SessionData al confirmar: {}", data);
+
         if (data.getPendingSectorId() != null) {
             Sector sector = sectorService.findById(data.getPendingSectorId());
             sesion.setSector(sector);
@@ -49,13 +53,14 @@ public class ConfirmSectorActionHandler implements BotActionHandler {
                     "BARRIDO", 5L,
                     "RIEGO", 30L,
                     "ESCOMBROS", 31L,
-                    "BOLSONES", 21L,
-                    "DESPERDICIOS", 21L
+                    "BOLSONES", 23L,
+                    "DESPERDICIOS", 23L
             );
 
-            Long nextStateId = mapaDestinos.get(tipo.toUpperCase());
+            Long nextStateId = mapaDestinos.get(tipo.trim().toUpperCase());
 
             if (nextStateId != null) {
+                log.info("🎯 Saltando al estado: {}", nextStateId);
                 BotState nextState = botStateRepository.findById(nextStateId).orElse(null);
                 if (nextState != null) {
                     sesion.setCurrentState(nextState);
@@ -63,6 +68,8 @@ public class ConfirmSectorActionHandler implements BotActionHandler {
             }
         }
 
+        sesion.setTempData(data);
+
         return null;
     }
-}
+}}

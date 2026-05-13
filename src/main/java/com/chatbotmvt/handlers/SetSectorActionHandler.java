@@ -27,6 +27,7 @@ public class SetSectorActionHandler implements BotActionHandler {
         SessionData data = sesion.getTempData();
         Long sectorId = Long.valueOf(opcion.getActionValue());
         data.setPendingSectorId(sectorId);
+        sesion.setTempData(data);
         return null;
     }
 }

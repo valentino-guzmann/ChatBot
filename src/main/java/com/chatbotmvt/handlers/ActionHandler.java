@@ -34,6 +34,8 @@ public class ActionHandler implements BotActionHandler {
         String tipo = tipoInput.trim().toUpperCase();
         data.setTipoReclamo(tipo);
 
+        sesion.setTempData(data);
+
         if (sesion.getSector() != null) {
             Long nextStateId = obtenerEstadoInputPorTipo(tipo);
             BotState nextState = botStateRepository.findById(nextStateId)
