@@ -85,11 +85,6 @@ public class BotService {
             return resetearAlMenuInicial(sesion);
         }
 
-        if (estadoOrigen.getId() != null && estadoOrigen.getId() == 32L) {
-            log.info("🤫 Bot silenciado: Usuario en espera de operador. Ignorando mensaje.");
-            return null;
-        }
-
         Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
 
         if (ruleOpt.isEmpty()) {
@@ -98,13 +93,14 @@ public class BotService {
 
         if (ruleOpt.isPresent()) {
             BotFlowRule rule = ruleOpt.get();
-
             log.info("RULE MATCH → {}", rule.getId());
+
+            Long idAntes = sesion.getCurrentState().getId();
 
             actionHandlerFactory.getHandler(rule.getActionType())
                     .ifPresent(handler -> handler.execute(sesion, rule, input));
 
-            if (rule.getNextState() != null) {
+            if (rule.getNextState() != null && sesion.getCurrentState().getId().equals(idAntes)) {
                 BotState nextState = botStateCache.get(
                         rule.getNextState().getId(),
                         id -> botStateRepository.findById(id).orElse(null)
