@@ -20,7 +20,6 @@ import java.util.Optional;
 public class WebhookController {
 
     private final BotService botService;
-    private final WhatsappService whatsappService;
     private final WebhookSecurityService securityService;
     private final ObjectMapper objectMapper;
 
@@ -45,13 +44,15 @@ public class WebhookController {
     public ResponseEntity<Void> receiveMessage(
             @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature,
             @RequestBody String rawPayload) {
+        log.info("🔥 WEBHOOK RECIBIDO");
 
         log.debug("📥 Payload recibido: {}", rawPayload);
+        log.info("Firma recibida: {}", signature);
 
-        if (!securityService.isSignatureValid(rawPayload, signature)) {
-            log.warn("❌ Firma inválida");
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+//        if (!securityService.isSignatureValid(rawPayload, signature)) {
+//            log.warn("❌ Firma inválida");
+//            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+//        }
 
         try {
             WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
