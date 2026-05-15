@@ -42,39 +42,10 @@ public class WebhookController {
 
     @PostMapping
     public ResponseEntity<Void> receiveMessage(
-            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature,
             @RequestBody String rawPayload) {
-        log.info("🔥 WEBHOOK RECIBIDO");
 
-        log.debug("📥 Payload recibido: {}", rawPayload);
-        log.info("Firma recibida: {}", signature);
-
-//        if (!securityService.isSignatureValid(rawPayload, signature)) {
-//            log.warn("❌ Firma inválida");
-//            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-//        }
-
-        try {
-            WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
-
-            var messageOpt = extractMessage(request);
-
-            if (messageOpt.isPresent()) {
-                MessageReceived msg = messageOpt.get();
-
-                if (msg.text() != null && msg.text().body() != null) {
-                    String phone = msg.from();
-                    String text = msg.text().body();
-
-                    log.info("📩 Mensaje recibido de [{}]. Procesando de forma asíncrona...", phone);
-
-                    botService.procesarYResponder(phone, text);
-                }
-            }
-
-        } catch (Exception e) {
-            log.error("❌ Error procesando webhook: {}", e.getMessage());
-        }
+        log.info("🔥 POST WEBHOOK HIT");
+        log.info("Payload: {}", rawPayload);
 
         return ResponseEntity.ok().build();
     }
