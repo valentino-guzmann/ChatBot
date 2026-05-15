@@ -47,11 +47,6 @@ public class WebhookController {
 
         log.debug("📥 Payload recibido: {}", rawPayload);
 
-        if (!securityService.isSignatureValid(rawPayload, signature)) {
-            log.warn("❌ Firma inválida");
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-
         try {
             WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
 
