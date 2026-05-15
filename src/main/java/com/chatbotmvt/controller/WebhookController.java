@@ -60,18 +60,29 @@ public class WebhookController {
             if (messageOpt.isPresent()) {
                 MessageReceived msg = messageOpt.get();
 
-                if (msg.text() != null && msg.text().body() != null) {
-                    String phone = msg.from();
-                    String text = msg.text().body();
+                String phone = msg.from();
+                String text = msg.text() != null ? msg.text().body() : null;
 
-                    log.info("📩 Mensaje recibido de [{}]. Procesando de forma asíncrona...", phone);
+                log.info("📩 MENSAJE RECIBIDO → FROM: [{}] | TEXT: [{}]", phone, text);
+
+                if (phone != null && phone.contains("5556289170")) {
+                    log.warn("🚫 Mensaje ignorado del TEST NUMBER: {}", phone);
+                    return ResponseEntity.ok().build();
+                }
+
+                if (text != null && !text.isBlank()) {
+                    log.info("⚙️ Enviando a botService...");
 
                     botService.procesarYResponder(phone, text);
+                } else {
+                    log.warn("⚠️ Mensaje sin texto ignorado");
                 }
+            } else {
+                log.debug("ℹ️ Webhook recibido sin mensajes válidos (posible status update)");
             }
 
         } catch (Exception e) {
-            log.error("❌ Error procesando webhook: {}", e.getMessage());
+            log.error("❌ Error procesando webhook: {}", e.getMessage(), e);
         }
 
         return ResponseEntity.ok().build();
