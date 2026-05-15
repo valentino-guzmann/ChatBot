@@ -2,13 +2,15 @@ package com.chatbotmvt.controller;
 
 import com.chatbotmvt.dto.*;
 import com.chatbotmvt.services.BotService;
+import com.chatbotmvt.services.WhatsappService;
 import com.chatbotmvt.services.WebhookSecurityService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tools.jackson.databind.ObjectMapper;
+
 import java.util.Optional;
 
 @Slf4j
@@ -43,12 +45,12 @@ public class WebhookController {
             @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature,
             @RequestBody String rawPayload) {
 
-        log.info("📥 Payload recibido: {}", rawPayload);
+        log.debug("📥 Payload recibido: {}", rawPayload);
 
-//        if (!securityService.isSignatureValid(rawPayload, signature)) {
-//            log.warn("❌ Firma inválida");
-//            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-//        }
+        if (!securityService.isSignatureValid(rawPayload, signature)) {
+            log.warn("❌ Firma inválida");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
 
         try {
             WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
@@ -76,25 +78,19 @@ public class WebhookController {
     }
 
     private Optional<MessageReceived> extractMessage(WebhookRequest request) {
-        if (request == null || request.entry() == null || request.entry().isEmpty()) {
-            log.warn("⚠️ WebhookRequest vacío o sin entries");
+        try {
+            return Optional.ofNullable(request.entry())
+                    .filter(entries -> !entries.isEmpty())
+                    .map(entries -> entries.get(0))
+                    .map(Entry::changes)
+                    .filter(changes -> !changes.isEmpty())
+                    .map(changes -> changes.get(0))
+                    .map(Change::value)
+                    .map(Value::messages)
+                    .filter(messages -> !messages.isEmpty())
+                    .map(messages -> messages.get(0));
+        } catch (Exception e) {
             return Optional.empty();
         }
-
-        Entry entry = request.entry().get(0);
-        if (entry.changes() == null || entry.changes().isEmpty()) {
-            log.warn("⚠️ Entry sin cambios (changes)");
-            return Optional.empty();
-        }
-
-        Change change = entry.changes().get(0);
-        if (change.value() == null || change.value().messages() == null || change.value().messages().isEmpty()) {
-            // IMPORTANTE: WhatsApp envía "statuses" (confirmaciones de lectura) que NO traen mensajes.
-            // Estos se deben ignorar y no son errores.
-            log.info("ℹ️ El cambio no contiene mensajes (puede ser un estado de entrega)");
-            return Optional.empty();
-        }
-
-        return Optional.of(change.value().messages().get(0));
     }
 }
