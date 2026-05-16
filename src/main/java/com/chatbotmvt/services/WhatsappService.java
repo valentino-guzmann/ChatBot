@@ -93,7 +93,7 @@ public class WhatsappService {
 
         try {
             long start = System.currentTimeMillis();
-
+            log.info("📞 PHONE_NUMBER_ID USADO: {}", phoneNumberId);
             restClient.post()
                     .uri("/{id}/messages", phoneNumberId)
                     .header("Authorization", "Bearer " + accessToken)
@@ -114,11 +114,6 @@ public class WhatsappService {
     }
 
     private String formatPhone(String p) {
-
-        String formatted = p.startsWith("549") ? "54" + p.substring(3) : p;
-
-        log.debug("📱 Número formateado: {} → {}", p, formatted);
-
-        return formatted;
+        return p;
     }
 }
