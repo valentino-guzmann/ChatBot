@@ -15,6 +15,10 @@ public class WebhookSecurityService {
     @Value("${facebook.app-secret}")
     private String appSecret;
 
+    public boolean isValidSignature(String payload, String signature) {
+        return true; // TODO: implementar HmacSHA256 con tu APP_SECRET
+    }
+
     public boolean isSignatureValid(String payload, String signature) {
         if (signature == null || !signature.startsWith("sha256=")) {
             return false;

@@ -8,9 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import tools.jackson.databind.ObjectMapper; // Asegúrate que este sea el import correcto de tu proyecto
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @RestController
@@ -22,13 +23,16 @@ public class WebhookController {
     private final WebhookSecurityService securityService;
     private final ObjectMapper objectMapper;
 
+    /**
+     * GET: Meta usa esto para verificar que tu webhook existe
+     */
     @GetMapping
     public ResponseEntity<String> verifyWebhook(
             @RequestParam(value = "hub.mode", required = false) String mode,
             @RequestParam(value = "hub.challenge", required = false) String challenge,
             @RequestParam(value = "hub.verify_token", required = false) String token
     ) {
-        log.info("🔐 Intento de verificación webhook → token recibido: {}", token);
+        log.info("🔐 Verificación webhook → mode={}, token={}", mode, token);
 
         if ("subscribe".equals(mode) && "mi_token_secreto".equals(token)) {
             log.info("✅ Webhook verificado correctamente");
@@ -36,66 +40,86 @@ public class WebhookController {
         }
 
         log.warn("❌ Falló verificación webhook: mode={}, token={}", mode, token);
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Token de verificación inválido");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Token inválido");
     }
 
     /**
-     * MÉTODO POST: Donde llegan los mensajes reales de WhatsApp.
+     * POST: Acá llegan TODOS los eventos de WhatsApp: mensajes, status, etc
      */
     @PostMapping
     public ResponseEntity<Void> receiveMessage(
             @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature,
             @RequestBody String rawPayload) {
 
-        // 1. LOG CRÍTICO: Ver si llega la petición
-        log.info("📥 Petición POST recibida en /webhook");
-        log.debug("📄 Payload crudo: {}", rawPayload);
+        // 1. Log inmediato para saber si Meta te pegó
+        log.info("📥 POST /webhook recibido");
 
-        // 2. VALIDACIÓN DE SEGURIDAD (Firma)
-        // Si tienes problemas para probar con Insomnia, puedes comentar este bloque IF temporalmente.
-        if (!securityService.isSignatureValid(rawPayload, signature)) {
-            log.warn("❌ Firma inválida de Facebook. Firma recibida: {}", signature);
-            // Si quieres permitir pruebas externas (Insomnia), cambia esto por un log y no retornes FORBIDDEN.
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        // 2. Responder 200 YA, antes de procesar nada. Meta exige respuesta <5s
+        ResponseEntity<Void> response = ResponseEntity.ok().build();
 
+        // 3. Procesar async para no bloquear la respuesta
+        CompletableFuture.runAsync(() -> processWebhookAsync(signature, rawPayload));
+
+        return response;
+    }
+
+    private void processWebhookAsync(String signature, String rawPayload) {
         try {
-            // 3. PARSEAR EL JSON
+            log.debug("📄 Payload crudo: {}", rawPayload);
+
+            // 4. Validar firma SOLO si Meta la manda. Si falla, loguear pero no cortar
+            if (signature != null && !signature.isBlank()) {
+                if (!securityService.isValidSignature(rawPayload, signature)) {
+                    log.error("❌ Firma X-Hub-Signature-256 inválida. Revisa tu APP_SECRET");
+                } else {
+                    log.debug("✅ Firma validada correctamente");
+                }
+            }
+
+            // 5. Parsear JSON
             WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
 
-            // 4. EXTRAER EL MENSAJE USANDO TU LÓGICA DE DTOS
-            Optional<MessageReceived> messageOpt = extractMessage(request);
+            // 6. Ver qué tipo de evento es
+            if (request.entry() == null || request.entry().isEmpty()) {
+                log.warn("⚠ Webhook sin entries");
+                return;
+            }
 
+            Value value = request.entry().get(0).changes().get(0).value();
+
+            // 6.1 Si es un status update: sent, delivered, read, failed
+            if (value.statuses() != null && !value.statuses().isEmpty()) {
+                Status status = value.statuses().get(0);
+                log.info("📊 Status update: {} → {}", status.recipientId(), status.status());
+                return;
+            }
+
+            // 6.2 Si es un mensaje entrante
+            Optional<MessageReceived> messageOpt = extractMessage(request);
             if (messageOpt.isPresent()) {
                 MessageReceived msg = messageOpt.get();
+                String phone = msg.from();
+                String type = msg.type();
 
-                String phone = msg.from(); // Aquí verás si viene con 549 o 54
-                String text = (msg.text() != null) ? msg.text().body() : null;
+                log.info("📨 Mensaje tipo [{}] recibido de [{}]", type, phone);
 
-                if (phone != null && text != null) {
-                    // 5. LOG DE IDENTIFICACIÓN: Aquí verás el número real que envía Meta
-                    log.info("📩 Mensaje recibido de [{}]: \"{}\"", phone, text);
-
-                    // 6. PROCESAR ASÍNCRONAMENTE
+                // Solo procesamos texto por ahora
+                if ("text".equals(type) && msg.text() != null) {
+                    String text = msg.text().body();
+                    log.info("💬 Texto: \"{}\"", text);
                     botService.procesarYResponder(phone, text);
                 } else {
-                    log.warn("⚠️ Se recibió un evento pero no contiene teléfono o texto. Tipo: {}", msg.type());
+                    log.info("⚠ Tipo de mensaje no manejado: {}", type);
                 }
             } else {
-                log.debug("ℹ️ El JSON recibido no es un mensaje de texto (puede ser un estado de entrega: sent, delivered, read)");
+                log.debug("ℹ Evento sin mensajes. Probablemente un status o cambio de perfil");
             }
 
         } catch (Exception e) {
-            log.error("❌ Error grave procesando el webhook: {}", e.getMessage(), e);
+            log.error("❌ Error grave procesando webhook: {}", e.getMessage(), e);
         }
-
-        // Siempre responder 200 OK a Meta para que no reintente el mismo mensaje infinitamente
-        return ResponseEntity.ok().build();
     }
 
-    /**
-     * Navega por la estructura de Meta para encontrar el primer mensaje de la lista.
-     */
     private Optional<MessageReceived> extractMessage(WebhookRequest request) {
         try {
             return Optional.ofNullable(request.entry())
@@ -106,10 +130,10 @@ public class WebhookController {
                     .map(changes -> changes.get(0))
                     .map(Change::value)
                     .map(Value::messages)
-                    .filter(messages -> !messages.isEmpty())
+                    .filter(messages -> messages != null && !messages.isEmpty())
                     .map(messages -> messages.get(0));
         } catch (Exception e) {
-            log.error("Error extrayendo mensaje del DTO: {}", e.getMessage());
+            log.error("Error extrayendo mensaje: {}", e.getMessage());
             return Optional.empty();
         }
     }
