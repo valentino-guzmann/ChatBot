@@ -53,8 +53,8 @@ public class ConfirmSectorActionHandler implements BotActionHandler {
                     "BARRIDO", 5L,
                     "RIEGO", 30L,
                     "ESCOMBROS", 31L,
-                    "BOLSONES", 23L,
-                    "DESPERDICIOS", 23L
+                    "BOLSONES", 21L,
+                    "DESPERDICIOS", 21L
             );
 
             Long nextStateId = mapaDestinos.get(tipo.trim().toUpperCase());
