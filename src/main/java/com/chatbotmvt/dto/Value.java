@@ -8,5 +8,8 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record Value(
         @JsonProperty("messaging_product") String messagingProduct,
-        List<MessageReceived> messages
+        @JsonProperty("metadata") Metadata metadata,
+        @JsonProperty("contacts") List<Contact> contacts,
+        @JsonProperty("messages") List<MessageReceived> messages,
+        @JsonProperty("statuses") List<Status> statuses
 ) {}
