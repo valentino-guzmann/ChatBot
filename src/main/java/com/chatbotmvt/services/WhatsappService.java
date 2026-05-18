@@ -75,7 +75,9 @@ public class WhatsappService {
             ));
         }
 
-        templateData.put("components", components);
+        if (!components.isEmpty()) {
+            templateData.put("components", components);
+        }
 
         var body = Map.of(
                 "messaging_product", "whatsapp",
