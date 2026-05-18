@@ -3,6 +3,7 @@ package com.chatbotmvt.controller;
 import com.chatbotmvt.dto.*;
 import com.chatbotmvt.services.BotService;
 import com.chatbotmvt.services.WebhookSecurityService;
+import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ public class WebhookController {
     private final BotService botService;
     private final WebhookSecurityService securityService;
     private final ObjectMapper objectMapper;
+    private final Cache<String, Boolean> processedMessagesCache;
 
     @GetMapping
     public ResponseEntity<String> verifyWebhook(
@@ -48,32 +50,37 @@ public class WebhookController {
 
     private void processWebhookAsync(String signature, String rawPayload) {
         try {
-            log.debug("📄 Payload: {}", rawPayload);
-
             if (signature != null && !signature.isBlank()) {
-                if (!securityService.isValidSignature(rawPayload, signature)) {
+                if (!securityService.isSignatureValid(rawPayload, signature)) { // Usar el método corregido del service
                     log.error("❌ Firma inválida. Revisa APP_SECRET");
+                    return;
                 }
             }
 
             WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
-
             if (request.entry() == null || request.entry().isEmpty()) return;
+
             Value value = request.entry().get(0).changes().get(0).value();
 
-            // 1. Si es status update
             if (value.statuses() != null && !value.statuses().isEmpty()) {
                 Status s = value.statuses().get(0);
-                log.info("📊 Status: {} → {} para {}", s.id(), s.status(), s.recipientId());
+                log.info("📊 Status Update: {} → {} para {}", s.id(), s.status(), s.recipientId());
                 return;
             }
 
-            // 2. Si es mensaje entrante
             if (value.messages() != null && !value.messages().isEmpty()) {
                 MessageReceived msg = value.messages().get(0);
+                String wamid = msg.id();
                 String phone = msg.from();
                 String type = msg.type();
-                log.info("📨 Mensaje [{}] de [{}]", type, phone);
+
+                if (processedMessagesCache.getIfPresent(wamid) != null) {
+                    log.warn("♻️ Mensaje duplicado detectado (wamid: {}). Ignorando para evitar spam.", wamid);
+                    return;
+                }
+                processedMessagesCache.put(wamid, true);
+
+                log.info("📨 Mensaje recibido [ID: {}] [Tipo: {}] de [{}]", wamid, type, phone);
 
                 if ("text".equals(type) && msg.text() != null) {
                     String text = msg.text().body();
@@ -86,7 +93,7 @@ public class WebhookController {
             }
 
         } catch (Exception e) {
-            log.error("❌ Error procesando webhook: {}", e.getMessage(), e);
+            log.error("❌ Error procesando webhook asíncronamente: {}", e.getMessage(), e);
         }
     }
 }

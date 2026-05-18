@@ -22,6 +22,14 @@ public class CacheConfig {
     }
 
     @Bean
+    public Cache<String, Boolean> processedMessagesCache() {
+        return Caffeine.newBuilder()
+                .expireAfterWrite(1, TimeUnit.HOURS)
+                .maximumSize(1000)
+                .build();
+    }
+
+    @Bean
     public Cache<String, BotFlowRule> botFlowRuleCache() {
         return Caffeine.newBuilder()
                 .maximumSize(500)
