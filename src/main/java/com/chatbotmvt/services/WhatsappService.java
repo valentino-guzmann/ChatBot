@@ -58,23 +58,6 @@ public class WhatsappService {
             ));
         }
 
-
-
-        if (bodyText != null && !bodyText.isBlank()) {
-            bodyText = bodyText
-                    .replace("\n", " ")
-                    .replace("\r", " ")
-                    .replace("\t", " ")
-                    .replaceAll(" {2,}", " ")
-                    .trim();
-            components.add(Map.of(
-                    "type", "body",
-                    "parameters", List.of(
-                            Map.of("type", "text", "text", bodyText)
-                    )
-            ));
-        }
-
         if (!components.isEmpty()) {
             templateData.put("components", components);
         }
