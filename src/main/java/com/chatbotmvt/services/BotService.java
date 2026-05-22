@@ -1,20 +1,20 @@
 package com.chatbotmvt.services;
 
 import com.chatbotmvt.dto.SessionData;
-import com.chatbotmvt.entity.BotFlowRule;
-import com.chatbotmvt.entity.BotState;
-import com.chatbotmvt.entity.Sector;
-import com.chatbotmvt.entity.UsuarioSesion;
+import com.chatbotmvt.entity.*;
 import com.chatbotmvt.handlers.ActionHandlerFactory;
 import com.chatbotmvt.handlers.MenuHandler;
 import com.chatbotmvt.repository.BotStateRepository;
+import com.chatbotmvt.repository.MensajeLogRepository; // Nuevo
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate; // Nuevo
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Service
@@ -28,27 +28,44 @@ public class BotService {
     private final ActionHandlerFactory actionHandlerFactory;
     private final BotStateRepository botStateRepository;
     private final WhatsappService whatsappService;
-    private final SectorService sectorService;
+    private final MensajeLogRepository mensajeLogRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     private final Cache<Long, BotState> botStateCache;
-    private final Cache<Long, Sector> sectorCache;
 
     @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
         try {
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
-            RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
 
-            if (resultado == null || resultado.mensajeTexto() == null || resultado.mensajeTexto().isBlank()) {
-                log.debug("No hay respuesta para enviar (Bot en modo silencioso o sin mensaje)");
+            registrarMensaje(phone, text, "USER");
+            messagingTemplate.convertAndSend("/topic/updates", phone);
+
+            if (sesion.getBotEnabled() != null && !sesion.getBotEnabled()) {
+                log.info("🤖 Bot pausado para {}. Esperando respuesta humana.", phone);
                 return;
             }
 
-            if (resultado.templateName() != null) {
-                whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId(), resultado.mensajeTexto());
-            } else {
-                whatsappService.sendMessage(phone, resultado.mensajeTexto());
+            RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
+
+            SessionData data = sesion.getTempData();
+            if (data != null && data.getExtraInfo().containsKey("ignore_reply")) {
+                log.info("🤫 Opción inválida. Bot silenciado para {}", phone);
+                data.getExtraInfo().remove("ignore_reply");
+                usuarioSesionService.save(sesion);
+                return;
             }
+
+            if (resultado != null && resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
+
+                } if (resultado.templateName() != null) {
+                    whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId(), resultado.mensajeTexto());
+                } else {
+                    whatsappService.sendMessage(phone, resultado.mensajeTexto());
+                }
+
+                registrarMensaje(phone, resultado.mensajeTexto(), "BOT");
+
 
         } catch (Exception e) {
             log.error("Error en BotService: {}", e.getMessage(), e);
@@ -68,7 +85,6 @@ public class BotService {
         String mensajeFinal = reemplazarEtiquetas(mensajeTexto, sesion);
 
         BotState estadoNuevo = sesion.getCurrentState();
-
         String templateToSend = estadoNuevo.getTemplateName();
         String mediaIdToSend = estadoNuevo.getMediaId();
 
@@ -118,26 +134,54 @@ public class BotService {
         return sesion.getCurrentState().getMessage();
     }
 
+    // --- NUEVOS MÉTODOS PARA DASHBOARD Y OPERADOR ---
+
+    public void enviarMensajeManual(String phone, String content) {
+        // Enviar a WhatsApp
+        whatsappService.sendMessage(phone, content);
+
+        // Registrar mensaje como Operador
+        registrarMensaje(phone, content, "OPERATOR");
+
+        // Notificar al dashboard para que vea su propio mensaje
+        messagingTemplate.convertAndSend("/topic/updates", phone);
+    }
+
+    @Transactional
+    public void actualizarEstadoBot(String phone, boolean enabled) {
+        UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+        sesion.setBotEnabled(enabled);
+        usuarioSesionService.save(sesion);
+
+        // Notificar al dashboard que el status del bot cambió
+        messagingTemplate.convertAndSend("/topic/updates", phone);
+    }
+
+    private void registrarMensaje(String phone, String content, String sender) {
+        MensajeLog logEntry = new MensajeLog();
+        logEntry.setPhone(phone);
+        logEntry.setContent(content);
+        logEntry.setSender(sender);
+        logEntry.setCreatedAt(LocalDateTime.now());
+        mensajeLogRepository.save(logEntry);
+    }
+
+    // --- MÉTODOS DE APOYO ORIGINALES ---
+
     private String resetearAlMenuInicial(UsuarioSesion sesion) {
         BotState estadoInicial = usuarioSesionService.obtenerEstadoInicial();
-
         BotState cached = botStateCache.get(
                 estadoInicial.getId(),
                 id -> botStateRepository.findById(id).orElse(estadoInicial)
         );
-
         sesion.setCurrentState(cached);
         sesion.setTempData(new SessionData());
-
         return cached.getMessage();
     }
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
-
         if (mensaje == null) return "";
-
         SessionData data = sesion.getTempData();
-
         String nombreSector = "tu zona";
         String linkSector = "";
 
@@ -152,7 +196,6 @@ public class BotService {
         if (data != null && "true".equals(data.getExtraInfo().get("error_menu"))) {
             mensaje = "⚠️ Opción no válida\n" + mensaje;
         }
-
         return mensaje;
     }
 

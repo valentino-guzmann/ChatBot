@@ -59,6 +59,11 @@
             <artifactId>caffeine</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
         <!-- JACKSON FECHAS -->
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>

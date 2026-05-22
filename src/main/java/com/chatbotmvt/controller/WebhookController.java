@@ -51,7 +51,7 @@ public class WebhookController {
     private void processWebhookAsync(String signature, String rawPayload) {
         try {
             if (signature != null && !signature.isBlank()) {
-                if (!securityService.isSignatureValid(rawPayload, signature)) { // Usar el método corregido del service
+                if (!securityService.isSignatureValid(rawPayload, signature)) {
                     log.error("❌ Firma inválida. Revisa APP_SECRET");
                     return;
                 }

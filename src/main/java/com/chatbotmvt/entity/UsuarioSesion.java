@@ -36,6 +36,9 @@ public class UsuarioSesion {
     @Convert(converter = SessionDataConverter.class)
     private SessionData tempData;
 
+    @Column(name = "bot_enabled")
+    private Boolean botEnabled = true;
+
     private LocalDateTime created_at;
     private LocalDateTime updated_at;
 

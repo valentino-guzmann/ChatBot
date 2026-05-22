@@ -1,12 +1,15 @@
 package com.chatbotmvt.services;
 
 import com.chatbotmvt.dto.SessionData;
+import com.chatbotmvt.dto.UsuarioDTO;
 import com.chatbotmvt.entity.BotState;
 import com.chatbotmvt.entity.UsuarioSesion;
 import com.chatbotmvt.repository.BotStateRepository;
 import com.chatbotmvt.repository.UsuarioSesionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -39,5 +42,16 @@ public class UsuarioSesionService {
 
     public void save(UsuarioSesion sesion) {
         usuarioSesionRepository.save(sesion);
+    }
+
+    public List<UsuarioDTO> obtenerTodos() {
+        return usuarioSesionRepository.findAll().stream()
+                .map(u -> new UsuarioDTO(
+                        u.getPhone(),
+                        u.getCurrentState().getId(),
+                        u.getSector().getName(),
+                        u.getCreated_at(),
+                        u.getUpdated_at()))
+                .toList();
     }
 }
