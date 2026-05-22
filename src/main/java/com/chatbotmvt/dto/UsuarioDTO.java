@@ -4,9 +4,11 @@ import java.time.LocalDateTime;
 
 public record UsuarioDTO(
         String phone,
-        Long current_state_id,
+        Long currentStateId,
         String sector,
-        LocalDateTime created_at,
-        LocalDateTime updated_at
+        Boolean botEnabled,
+        String lastMessage,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {
 }
