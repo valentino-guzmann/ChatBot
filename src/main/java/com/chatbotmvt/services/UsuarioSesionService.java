@@ -48,8 +48,8 @@ public class UsuarioSesionService {
         return usuarioSesionRepository.findAll().stream()
                 .map(u -> new UsuarioDTO(
                         u.getPhone(),
-                        u.getCurrentState().getId(),
-                        u.getSector().getName(),
+                        u.getCurrentState() != null ? u.getCurrentState().getId() : null,
+                        u.getSector() != null ? u.getSector().getName() : "Sin asignar",
                         u.getCreated_at(),
                         u.getUpdated_at()))
                 .toList();

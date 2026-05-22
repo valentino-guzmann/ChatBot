@@ -101,4 +101,20 @@ public class WhatsappService {
     private String formatPhone(String p) {
         return p;
     }
+
+    public void sendImage(String phone, String imageUrl, String caption) {
+        log.info("📤 Enviando imagen a [{}]", phone);
+
+        var body = Map.of(
+                "messaging_product", "whatsapp",
+                "to", phone,
+                "type", "image",
+                "image", Map.of(
+                        "link", imageUrl,
+                        "caption", caption
+                )
+        );
+
+        execute(body);
+    }
 }

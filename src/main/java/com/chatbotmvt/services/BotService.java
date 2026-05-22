@@ -57,15 +57,19 @@ public class BotService {
             }
 
             if (resultado != null && resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
+                BotState estadoActual = sesion.getCurrentState(); // Necesitamos el estado para la imagen
 
-                } if (resultado.templateName() != null) {
+                if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
+                    // Enviar imagen con texto
+                    whatsappService.sendImage(phone, estadoActual.getTemplateName(), resultado.mensajeTexto());
+                } else if (resultado.templateName() != null) {
                     whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId(), resultado.mensajeTexto());
                 } else {
                     whatsappService.sendMessage(phone, resultado.mensajeTexto());
                 }
 
                 registrarMensaje(phone, resultado.mensajeTexto(), "BOT");
-
+            }
 
         } catch (Exception e) {
             log.error("Error en BotService: {}", e.getMessage(), e);
