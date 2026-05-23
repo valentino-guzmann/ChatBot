@@ -44,10 +44,13 @@ public class ReclamoService {
     }
 
     @Transactional
-    public void actualizarEstado(String phone, String nuevoEstado) {
-        Reclamo r = obtenerPorPhone(phone);
+    public void actualizarEstado(Long id, String nuevoEstado) {
+        Reclamo r = reclamoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Reclamo no encontrado con ID: " + id));
+
         r.setEstado(Reclamo.EstadoReclamo.valueOf(nuevoEstado.toUpperCase()));
         reclamoRepository.save(r);
+
         messagingTemplate.convertAndSend("/topic/updates", "estado_actualizado");
     }
 }

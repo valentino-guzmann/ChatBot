@@ -29,9 +29,9 @@ public class ReclamoController {
         return ResponseEntity.ok(reclamoService.obtenerPorPhone(phone));
     }
 
-    @PatchMapping("/{phone}/estado")
-    public ResponseEntity<Void> actualizarEstado(@PathVariable String phone, @RequestBody Map<String, String> body) {
-        reclamoService.actualizarEstado(phone, body.get("estado"));
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<Void> actualizarEstado(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        reclamoService.actualizarEstado(id, body.get("estado"));
         return ResponseEntity.ok().build();
     }
 
