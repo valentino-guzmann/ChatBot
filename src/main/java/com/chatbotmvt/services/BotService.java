@@ -197,9 +197,6 @@ public class BotService {
         mensaje = mensaje.replace("{nombre}", nombreSector);
         mensaje = mensaje.replace("{link}", linkSector != null ? linkSector : "");
 
-        if (data != null && "true".equals(data.getExtraInfo().get("error_menu"))) {
-            mensaje = "⚠️ Opción no válida\n" + mensaje;
-        }
         return mensaje;
     }
 

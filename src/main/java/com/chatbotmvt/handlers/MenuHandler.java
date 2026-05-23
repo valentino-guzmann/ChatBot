@@ -27,7 +27,7 @@ public class MenuHandler {
 
         if (opcionOpt.isPresent()) {
             var opcion = opcionOpt.get();
-            log.info("✅ Opción válida: [{}] en estado [{}]", message, estadoActual.getName());
+            log.info("✅ Opción válida: [{}]", message);
 
             Long idEstadoAntes = sesion.getCurrentState().getId();
 
@@ -40,15 +40,12 @@ public class MenuHandler {
                 sesion.setCurrentState(opcion.getNextState());
             }
 
-            if (data.getExtraInfo() != null) {
-                data.getExtraInfo().remove("error_menu");
-            }
+            data.getExtraInfo().remove("ignore_reply");
+            data.getExtraInfo().remove("error_menu");
 
         } else {
-            if (message.matches("\\d+")) {
-                log.warn("❌ Opción inválida [{}] en estado [{}]", message, estadoActual.getName());
-                data.addExtra("error_menu", "true");
-            }
+            log.info("📝 Texto libre detectado en estado [{}]. El bot guardará silencio.", estadoActual.getName());
+            data.addExtra("ignore_reply", "true");
         }
 
         sesion.setTempData(data);
