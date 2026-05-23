@@ -35,7 +35,7 @@ public class ReclamoController {
         return ResponseEntity.ok().build();
     }
 
-    @GetMapping("/reclamos/{phone}/mensajes")
+    @GetMapping("/{phone}/mensajes")
     public ResponseEntity<?> obtenerMensajesReclamo(@PathVariable String phone) {
         return ResponseEntity.ok(chatService.obtenerHistorial(phone));
     }
