@@ -13,6 +13,7 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/reclamos")
+@CrossOrigin(origins = "*")
 public class ReclamoController {
 
     private final ReclamoService reclamoService;
