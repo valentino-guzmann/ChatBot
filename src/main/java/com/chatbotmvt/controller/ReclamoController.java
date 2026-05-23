@@ -24,13 +24,13 @@ public class ReclamoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Reclamo> obtenerReclamo(@PathVariable Long id) {
-        return ResponseEntity.ok(reclamoService.obtenerPorId(id));
+    public ResponseEntity<Reclamo> obtenerReclamoPorPhone(@PathVariable String phone) {
+        return ResponseEntity.ok(reclamoService.obtenerPorPhone(phone));
     }
 
-    @PatchMapping("/{id}/estado")
-    public ResponseEntity<Void> actualizarEstado(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        reclamoService.actualizarEstado(id, body.get("estado"));
+    @PatchMapping("/{phone}/estado")
+    public ResponseEntity<Void> actualizarEstado(@PathVariable String phone, @RequestBody Map<String, String> body) {
+        reclamoService.actualizarEstado(phone, body.get("estado"));
         return ResponseEntity.ok().build();
     }
 

@@ -10,6 +10,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,8 +23,8 @@ public class ReclamoService {
         return reclamoRepository.findAll();
     }
 
-    public Reclamo obtenerPorId(Long id) {
-        return reclamoRepository.findById(id).orElseThrow(() -> new RuntimeException("Reclamo no encontrado"));
+    public Reclamo obtenerPorPhone(String phone) {
+        return reclamoRepository.findByPhone(phone).orElseThrow(() -> new RuntimeException("Reclamo no encontrado"));
     }
 
     @Transactional
@@ -43,17 +44,10 @@ public class ReclamoService {
     }
 
     @Transactional
-    public void actualizarEstado(Long id, String nuevoEstado) {
-        Reclamo r = obtenerPorId(id);
+    public void actualizarEstado(String phone, String nuevoEstado) {
+        Reclamo r = obtenerPorPhone(phone);
         r.setEstado(Reclamo.EstadoReclamo.valueOf(nuevoEstado.toUpperCase()));
         reclamoRepository.save(r);
         messagingTemplate.convertAndSend("/topic/updates", "estado_actualizado");
-    }
-
-    @Transactional
-    public void actualizarPrioridad(Long id, String prioridad) {
-        Reclamo r = obtenerPorId(id);
-        reclamoRepository.save(r);
-        messagingTemplate.convertAndSend("/topic/updates", "prioridad_actualizada");
     }
 }
