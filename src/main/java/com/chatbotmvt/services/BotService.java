@@ -65,7 +65,7 @@ public class BotService {
                     );
                 }
                 else if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
-                    whatsappService.sendImage(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
+                    whatsappService.sendImageById(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
                 }
                 // Texto simple
                 else {

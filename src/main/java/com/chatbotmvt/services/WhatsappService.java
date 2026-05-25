@@ -110,16 +110,16 @@ public class WhatsappService {
         return p;
     }
 
-    public void sendImage(String phone, String imageUrl, String caption) {
-        log.info("📤 Enviando imagen a [{}]", phone);
+    public void sendImageById(String phone, String mediaId, String caption) {
+        log.info("📤 Enviando Imagen Estándar por Media ID [{}] a [{}]", mediaId, phone);
 
         var body = Map.of(
                 "messaging_product", "whatsapp",
                 "to", phone,
                 "type", "image",
                 "image", Map.of(
-                        "link", imageUrl,
-                        "caption", caption
+                        "id", mediaId, // <--- Importante: Usamos ID
+                        "caption", caption != null ? caption : "" // <--- Permite saltos de línea
                 )
         );
 
