@@ -46,8 +46,8 @@ public class BotService {
 
             SessionData data = sesion.getTempData();
             if (data != null && data.getExtraInfo().containsKey("ignore_reply")) {
-                log.info("🤫 Silencio aplicado para {}. No se repite el menú.", phone);
-                data.getExtraInfo().remove("ignore_reply"); // Limpiar para el próximo mensaje
+                log.info("🤫 Silencio: No se repite el menú para {}", phone);
+                data.getExtraInfo().remove("ignore_reply");
                 usuarioSesionService.save(sesion);
                 return;
             }
@@ -55,19 +55,9 @@ public class BotService {
             if (resultado != null && resultado.mensajeTexto() != null) {
                 BotState estadoActual = sesion.getCurrentState();
 
-                // Si el estado tiene una plantilla configurada (como las zonas ahora)
-                if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
-                    whatsappService.sendTemplate(
-                            phone,
-                            estadoActual.getTemplateName(),
-                            estadoActual.getMediaId(),
-                            resultado.mensajeTexto()
-                    );
-                }
-                else if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
+                if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
                     whatsappService.sendImageById(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
                 }
-                // Texto simple
                 else {
                     whatsappService.sendMessage(phone, resultado.mensajeTexto());
                 }
@@ -78,6 +68,7 @@ public class BotService {
             log.error("Error en BotService: {}", e.getMessage(), e);
         }
     }
+
     @Transactional
     public RespuestaBot ejecutarLogicaYGuardar(UsuarioSesion sesion, String text) {
         if (sesion.getTempData() == null) {
