@@ -39,7 +39,6 @@ public class ReclamoService {
 
         reclamoRepository.save(r);
 
-        // Notificar al Dashboard que hay un reclamo nuevo
         messagingTemplate.convertAndSend("/topic/updates", "nuevo_reclamo");
     }
 

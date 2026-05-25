@@ -37,45 +37,40 @@ public class BotService {
     public void procesarYResponder(String phone, String text) {
         try {
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
-
             registrarMensaje(phone, text, "USER");
             messagingTemplate.convertAndSend("/topic/updates", phone);
 
-            if (sesion.getBotEnabled() != null && !sesion.getBotEnabled()) {
-                log.info("🤖 Bot pausado para {}. Esperando respuesta humana.", phone);
-                return;
-            }
+            if (sesion.getBotEnabled() != null && !sesion.getBotEnabled()) return;
 
             RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
 
             SessionData data = sesion.getTempData();
             if (data != null && data.getExtraInfo().containsKey("ignore_reply")) {
-                log.info("🤫 Opción inválida. Bot silenciado para {}", phone);
-                data.getExtraInfo().remove("ignore_reply");
+                log.info("🤫 Silencio aplicado para {}. No se repite el menú.", phone);
+                data.getExtraInfo().remove("ignore_reply"); // Limpiar para el próximo mensaje
                 usuarioSesionService.save(sesion);
                 return;
             }
 
-            if (resultado != null && resultado.mensajeTexto() != null && !resultado.mensajeTexto().isBlank()) {
-                BotState estadoActual = sesion.getCurrentState(); // Necesitamos el estado para la imagen
+            if (resultado != null && resultado.mensajeTexto() != null) {
+                BotState estadoActual = sesion.getCurrentState();
 
-                if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
-                    // Enviar imagen con texto
+                if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
+                    whatsappService.sendImage(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
+                }
+                else if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
                     whatsappService.sendImage(phone, estadoActual.getTemplateName(), resultado.mensajeTexto());
-                } else if (resultado.templateName() != null) {
-                    whatsappService.sendTemplate(phone, resultado.templateName(), resultado.mediaId(), resultado.mensajeTexto());
-                } else {
+                }
+                else {
                     whatsappService.sendMessage(phone, resultado.mensajeTexto());
                 }
 
                 registrarMensaje(phone, resultado.mensajeTexto(), "BOT");
             }
-
         } catch (Exception e) {
             log.error("Error en BotService: {}", e.getMessage(), e);
         }
     }
-
     @Transactional
     public RespuestaBot ejecutarLogicaYGuardar(UsuarioSesion sesion, String text) {
         if (sesion.getTempData() == null) {
@@ -99,9 +94,20 @@ public class BotService {
         BotState estadoOrigen = sesion.getCurrentState();
         String input = (message == null) ? "" : message.trim().toLowerCase();
 
-        log.info("STATE [{}] INPUT [{}]", estadoOrigen.getId(), input);
-
         if (input.equals("menu") || input.equals("0")) {
+            SessionData data = sesion.getTempData();
+            String lastMenuTs = data.getExtraInfo().get("LAST_MENU_TS");
+            LocalDateTime now = LocalDateTime.now();
+
+            if (lastMenuTs != null) {
+                LocalDateTime lastShown = LocalDateTime.parse(lastMenuTs);
+                if (lastShown.isAfter(now.minusHours(24))) {
+                    data.addExtra("ignore_reply", "true");
+                    return null;
+                }
+            }
+
+            data.addExtra("LAST_MENU_TS", now.toString());
             return resetearAlMenuInicial(sesion);
         }
 
@@ -138,16 +144,10 @@ public class BotService {
         return sesion.getCurrentState().getMessage();
     }
 
-    // --- NUEVOS MÉTODOS PARA DASHBOARD Y OPERADOR ---
-
     public void enviarMensajeManual(String phone, String content) {
-        // Enviar a WhatsApp
         whatsappService.sendMessage(phone, content);
 
-        // Registrar mensaje como Operador
         registrarMensaje(phone, content, "OPERATOR");
-
-        // Notificar al dashboard para que vea su propio mensaje
         messagingTemplate.convertAndSend("/topic/updates", phone);
     }
 
