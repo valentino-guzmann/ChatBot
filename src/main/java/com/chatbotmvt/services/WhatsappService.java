@@ -40,8 +40,7 @@ public class WhatsappService {
     }
 
     public void sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
-
-        log.info("📤 Enviando Template [{}] a [{}]", templateName, phone);
+        log.info("📤 Enviando Template [{}] con MediaID a [{}]", templateName, phone);
 
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("name", templateName);
@@ -58,13 +57,22 @@ public class WhatsappService {
             ));
         }
 
+        if (bodyText != null && !bodyText.isBlank()) {
+            components.add(Map.of(
+                    "type", "body",
+                    "parameters", List.of(
+                            Map.of("type", "text", "text", bodyText)
+                    )
+            ));
+        }
+
         if (!components.isEmpty()) {
             templateData.put("components", components);
         }
 
         var body = Map.of(
                 "messaging_product", "whatsapp",
-                "to", formatPhone(phone),
+                "to", phone,
                 "type", "template",
                 "template", templateData
         );

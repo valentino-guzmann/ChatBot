@@ -55,12 +55,19 @@ public class BotService {
             if (resultado != null && resultado.mensajeTexto() != null) {
                 BotState estadoActual = sesion.getCurrentState();
 
-                if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
+                // Si el estado tiene una plantilla configurada (como las zonas ahora)
+                if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
+                    whatsappService.sendTemplate(
+                            phone,
+                            estadoActual.getTemplateName(),
+                            estadoActual.getMediaId(),
+                            resultado.mensajeTexto()
+                    );
+                }
+                else if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
                     whatsappService.sendImage(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
                 }
-                else if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
-                    whatsappService.sendImage(phone, estadoActual.getTemplateName(), resultado.mensajeTexto());
-                }
+                // Texto simple
                 else {
                     whatsappService.sendMessage(phone, resultado.mensajeTexto());
                 }
@@ -157,7 +164,6 @@ public class BotService {
         sesion.setBotEnabled(enabled);
         usuarioSesionService.save(sesion);
 
-        // Notificar al dashboard que el status del bot cambió
         messagingTemplate.convertAndSend("/topic/updates", phone);
     }
 
