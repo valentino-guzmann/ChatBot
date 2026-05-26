@@ -41,7 +41,6 @@ public class WhatsappService {
 
     public void sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
         log.info("📤 Enviando Template [{}] a [{}]", templateName, phone);
-
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("name", templateName);
         templateData.put("language", Map.of("code", "es_AR"));
@@ -51,24 +50,18 @@ public class WhatsappService {
         if (mediaId != null && !mediaId.isBlank()) {
             components.add(Map.of(
                     "type", "header",
-                    "parameters", List.of(
-                            Map.of("type", "image", "image", Map.of("id", mediaId))
-                    )
+                    "parameters", List.of(Map.of("type", "image", "image", Map.of("id", mediaId)))
             ));
         }
 
         if (bodyText != null && !bodyText.isBlank()) {
             components.add(Map.of(
                     "type", "body",
-                    "parameters", List.of(
-                            Map.of("type", "text", "text", bodyText)
-                    )
+                    "parameters", List.of(Map.of("type", "text", "text", bodyText))
             ));
         }
 
-        if (!components.isEmpty()) {
-            templateData.put("components", components);
-        }
+        if (!components.isEmpty()) templateData.put("components", components);
 
         var body = Map.of(
                 "messaging_product", "whatsapp",
@@ -76,7 +69,20 @@ public class WhatsappService {
                 "type", "template",
                 "template", templateData
         );
+        execute(body);
+    }
 
+    public void sendImageById(String phone, String mediaId, String caption) {
+        log.info("📤 Enviando Imagen con Media ID [{}]", mediaId);
+        var body = Map.of(
+                "messaging_product", "whatsapp",
+                "to", phone,
+                "type", "image",
+                "image", Map.of(
+                        "id", mediaId,
+                        "caption", caption != null ? caption : ""
+                )
+        );
         execute(body);
     }
 
@@ -110,19 +116,4 @@ public class WhatsappService {
         return p;
     }
 
-    public void sendImageById(String phone, String mediaId, String caption) {
-        log.info("📤 Enviando imagen por Media ID [{}] a [{}]", mediaId, phone);
-
-        var body = Map.of(
-                "messaging_product", "whatsapp",
-                "to", phone,
-                "type", "image",
-                "image", Map.of(
-                        "id", mediaId,
-                        "caption", caption != null ? caption : ""
-                )
-        );
-
-        execute(body);
-    }
 }
