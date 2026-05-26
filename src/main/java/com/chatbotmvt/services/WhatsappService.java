@@ -73,7 +73,7 @@ public class WhatsappService {
         return execute(body);
     }
 
-    public void sendImageById(String phone, String mediaId, String caption) {
+    public String sendImageById(String phone, String mediaId, String caption) {
         log.info("📤 Enviando Imagen con Media ID [{}]", mediaId);
         var body = Map.of(
                 "messaging_product", "whatsapp",
@@ -84,7 +84,7 @@ public class WhatsappService {
                         "caption", caption != null ? caption : ""
                 )
         );
-        execute(body);
+        return execute(body);
     }
 
     private String execute(Object body) {
