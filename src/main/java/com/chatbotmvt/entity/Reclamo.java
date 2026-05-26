@@ -3,6 +3,7 @@ package com.chatbotmvt.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "reclamos")
@@ -32,14 +33,14 @@ public class Reclamo {
     private EstadoReclamo estado = EstadoReclamo.PENDIENTE;
 
     @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 
     @PrePersist
     protected void onCreate() {
-        this.createdAt = LocalDateTime.now();
+        this.createdAt = OffsetDateTime.now();
     }
 
     public enum EstadoReclamo {
-        PENDIENTE, EN_PROCESO, RESUELTO, CANCELADO
+        PENDIENTE, RESUELTO, CANCELADO
     }
 }
