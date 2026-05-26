@@ -19,7 +19,6 @@ public class ChatService {
         return usuarioSesionService.obtenerTodos();
     }
 
-
     public List<MensajeLog> obtenerHistorial(String phone) {
         return logRepository.findByPhoneOrderByCreatedAtAsc(phone);
     }

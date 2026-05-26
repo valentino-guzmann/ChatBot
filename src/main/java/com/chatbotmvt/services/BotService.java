@@ -6,7 +6,6 @@ import com.chatbotmvt.handlers.ActionHandlerFactory;
 import com.chatbotmvt.handlers.MenuHandler;
 import com.chatbotmvt.repository.BotStateRepository;
 import com.chatbotmvt.repository.MensajeLogRepository;
-import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -38,7 +37,7 @@ public class BotService {
         try {
             UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
 
-            registrarMensaje(phone, text, "USER");
+            registrarMensaje(phone, text, "USER", null);
             messagingTemplate.convertAndSend("/topic/updates", phone);
 
             if (sesion.getBotEnabled() != null && !sesion.getBotEnabled()) {
@@ -58,18 +57,20 @@ public class BotService {
 
             if (resultado != null && resultado.mensajeTexto() != null) {
                 BotState estadoActual = sesion.getCurrentState();
+                String messageId;
 
                 if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
-                    whatsappService.sendTemplate(phone, estadoActual.getTemplateName(), estadoActual.getMediaId(), null);
+                    messageId = whatsappService.sendTemplate(phone, estadoActual.getTemplateName(), estadoActual.getMediaId(), null);
                 }
                 else if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
-                    whatsappService.sendImageById(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
+                    messageId = whatsappService.sendImageById(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
                 }
                 else {
-                    whatsappService.sendMessage(phone, resultado.mensajeTexto());
+                    messageId = whatsappService.sendMessage(phone, resultado.mensajeTexto());
                 }
 
-                registrarMensaje(phone, resultado.mensajeTexto(), "BOT");
+                // Registramos con el messageId y estado inicial "sent"
+                registrarMensaje(phone, resultado.mensajeTexto(), "BOT", messageId);
             }
 
         } catch (Exception e) {
@@ -171,23 +172,6 @@ public class BotService {
         data.addExtra("LAST_MENU_TS", now.toString());
     }
 
-    private Optional<BotOpcion> botOpcionService_obtenerOpcion(BotState estado, String input) {
-        return botStateRepository.findById(estado.getId())
-                .flatMap(s -> s.getId() == 1L ? Optional.empty() : Optional.empty());
-    }
-
-    private String resetearAlMenuInicial(UsuarioSesion sesion) {
-        BotState estadoInicial = botStateRepository.findById(1L).orElseThrow();
-        sesion.setCurrentState(estadoInicial);
-
-        SessionData data = sesion.getTempData();
-        String ts = data.getExtraInfo().get("LAST_MENU_TS");
-        SessionData newData = new SessionData();
-        newData.addExtra("LAST_MENU_TS", ts);
-        sesion.setTempData(newData);
-        return estadoInicial.getMessage();
-    }
-
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
         if (mensaje == null) return "";
         SessionData data = sesion.getTempData();
@@ -197,8 +181,8 @@ public class BotService {
     }
 
     public void enviarMensajeManual(String phone, String content) {
-        whatsappService.sendMessage(phone, content);
-        registrarMensaje(phone, content, "OPERATOR");
+        String messageId = whatsappService.sendMessage(phone, content);
+        registrarMensaje(phone, content, "OPERATOR", messageId);
         messagingTemplate.convertAndSend("/topic/updates", phone);
     }
 
@@ -210,11 +194,13 @@ public class BotService {
         messagingTemplate.convertAndSend("/topic/updates", phone);
     }
 
-    private void registrarMensaje(String phone, String content, String sender) {
+    private void registrarMensaje(String phone, String content, String sender, String messageId) {
         MensajeLog logEntry = new MensajeLog();
         logEntry.setPhone(phone);
         logEntry.setContent(content);
         logEntry.setSender(sender);
+        logEntry.setMessageId(messageId);
+        logEntry.setStatus(messageId != null ? "sent" : null);
         logEntry.setCreatedAt(OffsetDateTime.now());
         mensajeLogRepository.save(logEntry);
     }

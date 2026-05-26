@@ -1,6 +1,7 @@
 package com.chatbotmvt.controller;
 
 import com.chatbotmvt.dto.*;
+import com.chatbotmvt.repository.MensajeLogRepository;
 import com.chatbotmvt.services.BotService;
 import com.chatbotmvt.services.WebhookSecurityService;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -8,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.CompletableFuture;
@@ -21,6 +23,8 @@ public class WebhookController {
     private final BotService botService;
     private final WebhookSecurityService securityService;
     private final ObjectMapper objectMapper;
+    private final MensajeLogRepository mensajeLogRepository;
+    private final SimpMessagingTemplate messagingTemplate;
     private final Cache<String, Boolean> processedMessagesCache;
 
     @GetMapping
@@ -64,7 +68,18 @@ public class WebhookController {
 
             if (value.statuses() != null && !value.statuses().isEmpty()) {
                 Status s = value.statuses().get(0);
-                log.info("📊 Status Update: {} → {} para {}", s.id(), s.status(), s.recipientId());
+                String wamid = s.id();
+                String statusStr = s.status();
+
+                log.info("📊 Status Update recibido: ID [{}] → Estado [{}]", wamid, statusStr);
+
+                mensajeLogRepository.findByMessageId(wamid).ifPresent(msg -> {
+                    msg.setStatus(statusStr);
+                    mensajeLogRepository.save(msg);
+
+                    messagingTemplate.convertAndSend("/topic/updates", "status_update");
+                    log.debug("✅ Estado actualizado en BD para mensaje {}", wamid);
+                });
                 return;
             }
 
@@ -75,20 +90,19 @@ public class WebhookController {
                 String type = msg.type();
 
                 if (processedMessagesCache.getIfPresent(wamid) != null) {
-                    log.warn("♻️ Mensaje duplicado detectado (wamid: {}). Ignorando para evitar spam.", wamid);
+                    log.warn("♻️ Mensaje duplicado detectado (wamid: {}). Ignorando.", wamid);
                     return;
                 }
                 processedMessagesCache.put(wamid, true);
 
-                log.info("📨 Mensaje recibido [ID: {}] [Tipo: {}] de [{}]", wamid, type, phone);
+                log.info("📨 Mensaje recibido de [{}], Tipo [{}], ID [{}]", phone, type, wamid);
 
                 if ("text".equals(type) && msg.text() != null) {
                     String text = msg.text().body();
-                    log.info("💬 Texto: \"{}\"", text);
+                    log.info("💬 Texto del usuario: \"{}\"", text);
                     botService.procesarYResponder(phone, text);
                 } else {
-                    log.info("⚠ Tipo no manejado: {}. Respondiendo genérico", type);
-                    botService.procesarYResponder(phone, "[Recibí tu " + type + "]");
+                    log.info("⚠ Tipo no manejado directamente: {}.", type);
                 }
             }
 

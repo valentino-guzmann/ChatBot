@@ -38,11 +38,6 @@ public class UsuarioSesionService {
                 });
     }
 
-    public BotState obtenerEstadoInicial() {
-        return botStateRepository.findById(1L)
-                .orElseThrow(() -> new RuntimeException("No existe estado inicial"));
-    }
-
     public void save(UsuarioSesion sesion) {
         usuarioSesionRepository.save(sesion);
     }

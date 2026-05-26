@@ -1,5 +1,6 @@
 package com.chatbotmvt.services;
 
+import com.chatbotmvt.dto.WhatsappResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +25,7 @@ public class WhatsappService {
     @Value("${access.token}")
     private String accessToken;
 
-    public void sendMessage(String phone, String message) {
+    public String sendMessage(String phone, String message) {
 
         log.info("📤 Enviando mensaje de texto a [{}]", phone);
         log.debug("📝 Contenido mensaje: {}", message);
@@ -36,10 +37,10 @@ public class WhatsappService {
                 "text", Map.of("body", message)
         );
 
-        execute(body);
+        return execute(body);
     }
 
-    public void sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
+    public String sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
         log.info("📤 Enviando Template [{}] a [{}]", templateName, phone);
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("name", templateName);
@@ -69,7 +70,7 @@ public class WhatsappService {
                 "type", "template",
                 "template", templateData
         );
-        execute(body);
+        return execute(body);
     }
 
     public void sendImageById(String phone, String mediaId, String caption) {
@@ -86,30 +87,27 @@ public class WhatsappService {
         execute(body);
     }
 
-    private void execute(Object body) {
+    private String execute(Object body) {
 
         log.debug("🚀 Ejecutando request a WhatsApp API");
 
         try {
-            long start = System.currentTimeMillis();
-            log.info("📞 PHONE_NUMBER_ID USADO: {}", phoneNumberId);
-            restClient.post()
+            var response = restClient.post()
                     .uri("/{id}/messages", phoneNumberId)
                     .header("Authorization", "Bearer " + accessToken)
                     .body(body)
                     .retrieve()
-                    .toBodilessEntity();
+                    .body(WhatsappResponse.class);
 
-            long end = System.currentTimeMillis();
-            log.info("✅ Mensaje enviado correctamente");
-
-            log.info("⏱️ Tiempo API WhatsApp: {} ms", (end - start));
-
+            if (response != null && response.messages() != null && !response.messages().isEmpty()) {
+                String wamid = response.messages().get(0).get("id");
+                log.info("✅ Mensaje enviado. ID: {}", wamid);
+                return wamid;
+            }
         } catch (Exception e) {
-
-            log.error("❌ Error enviando mensaje a WhatsApp: {}", e.getMessage(), e);
-            throw e;
+            log.error("❌ Error enviando a WhatsApp: {}", e.getMessage());
         }
+        return null;
     }
 
     private String formatPhone(String p) {

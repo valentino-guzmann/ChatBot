@@ -20,8 +20,4 @@ public class SectorService {
         return sectorRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Sector no encontrado"));
     }
-
-    public List<SectorDetail> getDetalles(Sector sector) {
-        return sectorDetailRepository.findBySector(sector);
-    }
 }

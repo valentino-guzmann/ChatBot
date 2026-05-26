@@ -19,6 +19,10 @@ public class MensajeLog {
     private String content;
 
     private String sender;
+    private String status;
+
+    @Column(unique = true)
+    private String messageId;
 
     private OffsetDateTime createdAt;
 }

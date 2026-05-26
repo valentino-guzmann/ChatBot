@@ -9,4 +9,7 @@ public interface MensajeLogRepository extends JpaRepository<MensajeLog, Long> {
     List<MensajeLog> findByPhoneOrderByCreatedAtAsc(String phone);
 
     Optional<MensajeLog> findFirstByPhoneOrderByCreatedAtDesc(String phone);
+
+    Optional<MensajeLog> findByMessageId(String messageId);
+
 }
