@@ -19,10 +19,11 @@ public class MensajeLog {
     private String content;
 
     private String sender;
-    private String status;
-
-    @Column(unique = true)
+    @Column(name = "message_id", unique = true)
     private String messageId;
+
+    @Column(name = "status")
+    private String status;
 
     private OffsetDateTime createdAt;
 }
