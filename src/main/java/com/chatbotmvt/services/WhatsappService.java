@@ -40,7 +40,7 @@ public class WhatsappService {
     }
 
     public void sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
-        log.info("📤 Enviando Template [{}] con MediaID a [{}]", templateName, phone);
+        log.info("📤 Enviando Template [{}] a [{}]", templateName, phone);
 
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("name", templateName);

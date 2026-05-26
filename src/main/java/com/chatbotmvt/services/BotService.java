@@ -27,6 +27,7 @@ public class BotService {
     private final BotFlowRuleService botFlowRuleService;
     private final ActionHandlerFactory actionHandlerFactory;
     private final BotStateRepository botStateRepository;
+    private final BotOpcionService botOpcionService;
     private final WhatsappService whatsappService;
     private final MensajeLogRepository mensajeLogRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -91,55 +92,58 @@ public class BotService {
     private String procesarFlujoInterno(UsuarioSesion sesion, String message) {
         BotState estadoOrigen = sesion.getCurrentState();
         String input = (message == null) ? "" : message.trim().toLowerCase();
+        SessionData data = sesion.getTempData();
+        LocalDateTime now = LocalDateTime.now();
 
         if (input.equals("menu") || input.equals("0")) {
-            SessionData data = sesion.getTempData();
-            String lastMenuTs = data.getExtraInfo().get("LAST_MENU_TS");
-            LocalDateTime now = LocalDateTime.now();
-
-            if (lastMenuTs != null) {
-                LocalDateTime lastShown = LocalDateTime.parse(lastMenuTs);
-                if (lastShown.isAfter(now.minusHours(24))) {
-                    data.addExtra("ignore_reply", "true");
-                    return null;
-                }
+            if (estaEnPeriodoDeBloqueo(data, now)) {
+                log.info("🚫 Reset con '0' bloqueado por 24hs.");
+                data.addExtra("ignore_reply", "true");
+                return null;
             }
-
-            data.addExtra("LAST_MENU_TS", now.toString());
+            actualizarTimestampMenu(data, now);
             return resetearAlMenuInicial(sesion);
         }
 
-        Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
+        if (estadoOrigen.getId() == 1L) {
+            Optional<BotOpcion> opt = botOpcionService.obtenerEstadoYOpcion(estadoOrigen, input);
+            if (opt.isPresent()) {
+                actualizarTimestampMenu(data, now);
+                menuHandler.handle(sesion, input);
+                return sesion.getCurrentState().getMessage();
+            }
 
-        if (ruleOpt.isEmpty()) {
-            ruleOpt = botFlowRuleService.findDefault(estadoOrigen);
+            if (estaEnPeriodoDeBloqueo(data, now)) {
+                // Ya se le mostró el menú hoy, así que ignoramos cualquier otra palabra
+                log.info("🤫 Silenciando 'hola' o texto libre por regla de 24hs.");
+                data.addExtra("ignore_reply", "true");
+                return null;
+            } else {
+                // Es su primer mensaje del día ("hola"), le mostramos el menú
+                log.info("👋 'Hola' detectado fuera de periodo de bloqueo. Mostrando menú.");
+                actualizarTimestampMenu(data, now);
+                return estadoOrigen.getMessage();
+            }
         }
+
+        // 3. FLUJO NORMAL (Si ya salió del menú principal)
+        // Aquí el bot responde normalmente a lo que el usuario escriba
+        Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
+        if (ruleOpt.isEmpty()) ruleOpt = botFlowRuleService.findDefault(estadoOrigen);
 
         if (ruleOpt.isPresent()) {
             BotFlowRule rule = ruleOpt.get();
-            log.info("RULE MATCH → {}", rule.getId());
-
             Long idAntes = sesion.getCurrentState().getId();
-
-            actionHandlerFactory.getHandler(rule.getActionType())
-                    .ifPresent(handler -> handler.execute(sesion, rule, input));
-
+            actionHandlerFactory.getHandler(rule.getActionType()).ifPresent(h -> h.execute(sesion, rule, input));
             if (rule.getNextState() != null && sesion.getCurrentState().getId().equals(idAntes)) {
-                BotState nextState = botStateCache.get(
-                        rule.getNextState().getId(),
-                        id -> botStateRepository.findById(id).orElse(null)
-                );
-
-                if (nextState != null) {
-                    sesion.setCurrentState(nextState);
-                }
+                sesion.setCurrentState(rule.getNextState());
             }
-
+            return sesion.getCurrentState().getMessage();
         } else {
             menuHandler.handle(sesion, input);
+            if (data.getExtraInfo().containsKey("ignore_reply")) return null;
+            return sesion.getCurrentState().getMessage();
         }
-
-        return sesion.getCurrentState().getMessage();
     }
 
     public void enviarMensajeManual(String phone, String content) {
@@ -195,6 +199,16 @@ public class BotService {
         mensaje = mensaje.replace("{link}", linkSector != null ? linkSector : "");
 
         return mensaje;
+    }
+
+    private boolean estaEnPeriodoDeBloqueo(SessionData data, LocalDateTime now) {
+        String lastMenuTs = data.getExtraInfo().get("LAST_MENU_TS");
+        if (lastMenuTs == null) return false;
+        return LocalDateTime.parse(lastMenuTs).isAfter(now.minusHours(24));
+    }
+
+    private void actualizarTimestampMenu(SessionData data, LocalDateTime now) {
+        data.addExtra("LAST_MENU_TS", now.toString());
     }
 
     private record RespuestaBot(String mensajeTexto, String templateName, String mediaId) {}
