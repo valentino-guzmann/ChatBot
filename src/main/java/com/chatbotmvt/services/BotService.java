@@ -47,7 +47,6 @@ public class BotService {
 
             RespuestaBot resultado = ejecutarLogicaYGuardar(sesion, text);
 
-            // --- LÓGICA DE SILENCIO (Restricción 24hs) ---
             SessionData data = sesion.getTempData();
             if (data != null && data.getExtraInfo().containsKey("ignore_reply")) {
                 log.info("🤫 Silencio aplicado para {}. No se envía respuesta.", phone);
@@ -59,17 +58,12 @@ public class BotService {
             if (resultado != null && resultado.mensajeTexto() != null) {
                 BotState estadoActual = sesion.getCurrentState();
 
-                // 1. Prioridad: Plantillas de Meta (Para menús de selección con imagen)
                 if (estadoActual.getTemplateName() != null && !estadoActual.getTemplateName().isBlank()) {
-                    // Pasamos null en el texto para que use el texto fijo configurado en Meta y no el de la DB
                     whatsappService.sendTemplate(phone, estadoActual.getTemplateName(), estadoActual.getMediaId(), null);
                 }
-                // 2. Prioridad: Imagen con Media ID (Para barrios/zonas específicas)
                 else if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
-                    // Enviamos el texto de la DB (barrios) como pie de foto (caption)
                     whatsappService.sendImageById(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
                 }
-                // 3. Prioridad: Mensaje de texto simple
                 else {
                     whatsappService.sendMessage(phone, resultado.mensajeTexto());
                 }
@@ -103,7 +97,7 @@ public class BotService {
         SessionData data = sesion.getTempData();
         LocalDateTime now = LocalDateTime.now();
 
-        if ((input.equals("menu") || input.equals("0"))) {
+        if ((input.equals("menu") || input.equals("0")) && estadoOrigen.getId() == 1L) {
             if (estaEnPeriodoDeBloqueo(data, now)) {
                 data.addExtra("ignore_reply", "true");
                 return null;
@@ -114,6 +108,7 @@ public class BotService {
         if (ruleOpt.isEmpty()) ruleOpt = botFlowRuleService.findDefault(estadoOrigen);
 
         if (ruleOpt.isPresent()) {
+            data.getExtraInfo().remove("ignore_reply");
             BotFlowRule rule = ruleOpt.get();
             Long idAntes = sesion.getCurrentState().getId();
             actionHandlerFactory.getHandler(rule.getActionType()).ifPresent(h -> h.execute(sesion, rule, input));
@@ -124,8 +119,8 @@ public class BotService {
         }
 
         var opcionOpt = botOpcionService.obtenerEstadoYOpcion(estadoOrigen, input);
-
         if (opcionOpt.isPresent()) {
+            data.getExtraInfo().remove("ignore_reply");
             menuHandler.handle(sesion, input);
             actualizarTimestampMenu(data, now);
             return sesion.getCurrentState().getMessage();
@@ -133,28 +128,32 @@ public class BotService {
 
         if (estadoOrigen.getId() != 1L) {
             BotState menuPrincipal = botStateRepository.findById(1L).orElse(null);
-            var opcionMenuPrincipal = botOpcionService.obtenerEstadoYOpcion(menuPrincipal, input);
+            var opcionGlobal = botOpcionService.obtenerEstadoYOpcion(menuPrincipal, input);
 
-            if (opcionMenuPrincipal.isPresent()) {
-                log.info("🌐 Salto Global: Opción [{}] encontrada en Menú Principal", input);
+            if (opcionGlobal.isPresent()) {
+                log.info("🌐 Salto Global a opción [{}]", input);
                 sesion.setCurrentState(menuPrincipal);
                 menuHandler.handle(sesion, input);
                 actualizarTimestampMenu(data, now);
                 return sesion.getCurrentState().getMessage();
             }
+
+            data.addExtra("ignore_reply", "true");
+            return null;
         }
 
         if (estadoOrigen.getId() == 1L) {
             if (estaEnPeriodoDeBloqueo(data, now)) {
+                log.info("🤫 Silenciando texto libre [{}] por regla de 24hs", input);
                 data.addExtra("ignore_reply", "true");
                 return null;
+            } else {
+                actualizarTimestampMenu(data, now);
+                return estadoOrigen.getMessage();
             }
-            actualizarTimestampMenu(data, now);
-            return estadoOrigen.getMessage();
-        } else {
-            data.addExtra("ignore_reply", "true");
-            return null;
         }
+
+        return null;
     }
 
     private boolean estaEnPeriodoDeBloqueo(SessionData data, LocalDateTime now) {
