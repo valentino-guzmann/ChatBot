@@ -25,12 +25,12 @@ public class BotService {
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
     private final BotFlowRuleService botFlowRuleService;
+    private final BotOpcionService botOpcionService;
     private final ActionHandlerFactory actionHandlerFactory;
     private final BotStateRepository botStateRepository;
     private final WhatsappService whatsappService;
     private final MensajeLogRepository mensajeLogRepository;
     private final SimpMessagingTemplate messagingTemplate;
-    private final Cache<Long, BotState> botStateCache;
 
     @Async("botExecutor")
     public void procesarYResponder(String phone, String text) {
@@ -103,54 +103,58 @@ public class BotService {
         SessionData data = sesion.getTempData();
         LocalDateTime now = LocalDateTime.now();
 
-        // --- A. RESTRICCIÓN EXPLÍCITA (0 o MENU) ---
-        if (input.equals("menu") || input.equals("0")) {
-            if (estaEnPeriodoDeBloqueo(data, now) && estadoOrigen.getId() != 1L) {
-                log.info("🚫 Intento de reset bloqueado por 24hs.");
-                data.addExtra("ignore_reply", "true");
-                return null;
-            }
-            actualizarTimestampMenu(data, now);
-            return resetearAlMenuInicial(sesion);
-        }
-
-        if (estadoOrigen.getId() == 1L) {
-            Optional<BotOpcion> opt = botOpcionService_obtenerOpcion(estadoOrigen, input);
-            if (opt.isPresent()) {
-                actualizarTimestampMenu(data, now);
-                menuHandler.handle(sesion, input);
-                return sesion.getCurrentState().getMessage();
-            }
-
+        if ((input.equals("menu") || input.equals("0"))) {
             if (estaEnPeriodoDeBloqueo(data, now)) {
-                log.info("🤫 Silenciando mensaje en menú por regla de 24hs.");
                 data.addExtra("ignore_reply", "true");
                 return null;
-            } else {
-                actualizarTimestampMenu(data, now);
-                return estadoOrigen.getMessage();
             }
         }
 
         Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
-        if (ruleOpt.isEmpty()) {
-            ruleOpt = botFlowRuleService.findDefault(estadoOrigen);
-        }
+        if (ruleOpt.isEmpty()) ruleOpt = botFlowRuleService.findDefault(estadoOrigen);
 
         if (ruleOpt.isPresent()) {
             BotFlowRule rule = ruleOpt.get();
             Long idAntes = sesion.getCurrentState().getId();
-            actionHandlerFactory.getHandler(rule.getActionType())
-                    .ifPresent(handler -> handler.execute(sesion, rule, input));
-
+            actionHandlerFactory.getHandler(rule.getActionType()).ifPresent(h -> h.execute(sesion, rule, input));
             if (rule.getNextState() != null && sesion.getCurrentState().getId().equals(idAntes)) {
                 sesion.setCurrentState(rule.getNextState());
             }
-        } else {
-            menuHandler.handle(sesion, input);
+            return sesion.getCurrentState().getMessage();
         }
 
-        return (sesion.getCurrentState() != null) ? sesion.getCurrentState().getMessage() : null;
+        var opcionOpt = botOpcionService.obtenerEstadoYOpcion(estadoOrigen, input);
+
+        if (opcionOpt.isPresent()) {
+            menuHandler.handle(sesion, input);
+            actualizarTimestampMenu(data, now);
+            return sesion.getCurrentState().getMessage();
+        }
+
+        if (estadoOrigen.getId() != 1L) {
+            BotState menuPrincipal = botStateRepository.findById(1L).orElse(null);
+            var opcionMenuPrincipal = botOpcionService.obtenerEstadoYOpcion(menuPrincipal, input);
+
+            if (opcionMenuPrincipal.isPresent()) {
+                log.info("🌐 Salto Global: Opción [{}] encontrada en Menú Principal", input);
+                sesion.setCurrentState(menuPrincipal);
+                menuHandler.handle(sesion, input);
+                actualizarTimestampMenu(data, now);
+                return sesion.getCurrentState().getMessage();
+            }
+        }
+
+        if (estadoOrigen.getId() == 1L) {
+            if (estaEnPeriodoDeBloqueo(data, now)) {
+                data.addExtra("ignore_reply", "true");
+                return null;
+            }
+            actualizarTimestampMenu(data, now);
+            return estadoOrigen.getMessage();
+        } else {
+            data.addExtra("ignore_reply", "true");
+            return null;
+        }
     }
 
     private boolean estaEnPeriodoDeBloqueo(SessionData data, LocalDateTime now) {
