@@ -1,6 +1,7 @@
 package com.chatbotmvt.dto;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 public record UsuarioDTO(
         String phone,
@@ -8,7 +9,7 @@ public record UsuarioDTO(
         String sector,
         Boolean botEnabled,
         String lastMessage,
-        LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        OffsetDateTime createdAt,
+        OffsetDateTime updatedAt
 ) {
 }

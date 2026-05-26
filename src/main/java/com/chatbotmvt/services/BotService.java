@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 @Service
@@ -214,7 +215,7 @@ public class BotService {
         logEntry.setPhone(phone);
         logEntry.setContent(content);
         logEntry.setSender(sender);
-        logEntry.setCreatedAt(LocalDateTime.now());
+        logEntry.setCreatedAt(OffsetDateTime.now());
         mensajeLogRepository.save(logEntry);
     }
 
