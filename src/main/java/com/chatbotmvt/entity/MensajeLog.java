@@ -1,8 +1,9 @@
 package com.chatbotmvt.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+        import lombok.Data;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "mensaje_log")
@@ -17,7 +18,7 @@ public class MensajeLog {
     @Column(columnDefinition = "TEXT")
     private String content;
 
-    private String sender; // "USER", "BOT", "OPERATOR"
+    private String sender;
 
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
 }

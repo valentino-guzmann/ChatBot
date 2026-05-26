@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "user_session")
@@ -39,16 +40,16 @@ public class UsuarioSesion {
     @Column(name = "bot_enabled")
     private Boolean botEnabled = true;
 
-    private LocalDateTime created_at;
-    private LocalDateTime updated_at;
+    private OffsetDateTime created_at;
+    private OffsetDateTime updated_at;
 
     @PrePersist
     public void prePersist() {
-        this.created_at = LocalDateTime.now();
+        this.created_at = OffsetDateTime.now();
     }
 
     @PreUpdate
     public void preUpdate() {
-        this.updated_at = LocalDateTime.now();
+        this.updated_at = OffsetDateTime.now();
     }
 }
