@@ -52,8 +52,8 @@ public class ActionHandler implements BotActionHandler {
             case "BARRIDO" -> 5L;
             case "RIEGO" -> 30L;
             case "ESCOMBROS" -> 31L;
-
-            case "BOLSONES", "DESPERDICIOS" -> 21L;
+            case "BOLSONES" -> 21L;
+            case "DESPERDICIOS" -> 33L;
 
             default -> 1L;
         };
