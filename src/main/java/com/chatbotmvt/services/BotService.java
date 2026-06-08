@@ -98,9 +98,11 @@ public class BotService {
         SessionData data = sesion.getTempData();
         LocalDateTime now = LocalDateTime.now();
 
-        // Bloqueo de re-envío del menú principal (estado 1) si ya fue enviado en las últimas 24hs
+        // Bloqueo explícito: si el usuario pide el menú con "menu" o "0" estando ya en estado 1
+        // y ya lo recibió en las últimas 24hs, silenciar
         if ((input.equals("menu") || input.equals("0")) && estadoOrigen.getId() == 1L) {
             if (estaEnPeriodoDeBloqueo(data, now)) {
+                log.info("🤫 Bloqueando reenvío de menú por [{}] en período de 24hs", input);
                 data.addExtra("ignore_reply", "true");
                 return null;
             }
@@ -118,7 +120,7 @@ public class BotService {
                 sesion.setCurrentState(rule.getNextState());
             }
 
-            // Si la regla lleva al menú (estado 1), chequear bloqueo 24hs antes de enviar
+            // Si la regla lleva al menú (estado 1), chequear bloqueo 24hs antes de enviarlo
             if (sesion.getCurrentState().getId() == 1L && estaEnPeriodoDeBloqueo(data, now)) {
                 log.info("🤫 Supresión de menú (estado 1) por regla de 24hs tras BotFlowRule");
                 data.addExtra("ignore_reply", "true");
@@ -168,6 +170,9 @@ public class BotService {
             return null;
         }
 
+        // Estado 1: texto libre que no es una opción ni una regla.
+        // Si ya recibió el menú en las últimas 24hs -> silencio (sin tocar el timestamp).
+        // Si nunca lo recibió o ya pasaron 24hs -> enviar el menú y guardar el timestamp.
         if (estadoOrigen.getId() == 1L) {
             if (estaEnPeriodoDeBloqueo(data, now)) {
                 log.info("🤫 Silenciando texto libre [{}] por regla de 24hs", input);
@@ -182,11 +187,16 @@ public class BotService {
         return null;
     }
 
+    /**
+     * Retorna true si el menú ya fue enviado en las últimas 24 horas.
+     * Retorna false si nunca se envió (LAST_MENU_TS ausente) o si ya pasó el período.
+     */
     private boolean estaEnPeriodoDeBloqueo(SessionData data, LocalDateTime now) {
         String lastMenuTs = data.getExtraInfo().get("LAST_MENU_TS");
         if (lastMenuTs == null) return false;
         try {
-            return LocalDateTime.parse(lastMenuTs).isAfter(now.minusHours(24));
+            LocalDateTime lastSent = LocalDateTime.parse(lastMenuTs);
+            return lastSent.isAfter(now.minusHours(24));
         } catch (Exception e) {
             return false;
         }
@@ -198,7 +208,6 @@ public class BotService {
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
         if (mensaje == null) return "";
-        SessionData data = sesion.getTempData();
         String nombreSector = (sesion.getSector() != null) ? sesion.getSector().getName() : "tu zona";
         String linkSector = (sesion.getSector() != null) ? sesion.getSector().getCalendarLink() : "";
         return mensaje.replace("{nombre}", nombreSector).replace("{link}", linkSector != null ? linkSector : "");
