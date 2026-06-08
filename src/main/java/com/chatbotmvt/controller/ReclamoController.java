@@ -13,7 +13,7 @@ import java.util.Map;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/reclamos")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = "")
 public class ReclamoController {
 
     private final ReclamoService reclamoService;
