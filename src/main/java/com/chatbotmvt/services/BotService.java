@@ -69,7 +69,6 @@ public class BotService {
                     messageId = whatsappService.sendMessage(phone, resultado.mensajeTexto());
                 }
 
-                // Registramos con el messageId y estado inicial "sent"
                 registrarMensaje(phone, resultado.mensajeTexto(), "BOT", messageId);
             }
 
@@ -99,6 +98,7 @@ public class BotService {
         SessionData data = sesion.getTempData();
         LocalDateTime now = LocalDateTime.now();
 
+        // Bloqueo de re-envío del menú principal (estado 1) si ya fue enviado en las últimas 24hs
         if ((input.equals("menu") || input.equals("0")) && estadoOrigen.getId() == 1L) {
             if (estaEnPeriodoDeBloqueo(data, now)) {
                 data.addExtra("ignore_reply", "true");
@@ -117,6 +117,14 @@ public class BotService {
             if (rule.getNextState() != null && sesion.getCurrentState().getId().equals(idAntes)) {
                 sesion.setCurrentState(rule.getNextState());
             }
+
+            // Si la regla lleva al menú (estado 1), chequear bloqueo 24hs antes de enviar
+            if (sesion.getCurrentState().getId() == 1L && estaEnPeriodoDeBloqueo(data, now)) {
+                log.info("🤫 Supresión de menú (estado 1) por regla de 24hs tras BotFlowRule");
+                data.addExtra("ignore_reply", "true");
+                return null;
+            }
+
             return sesion.getCurrentState().getMessage();
         }
 
@@ -124,6 +132,14 @@ public class BotService {
         if (opcionOpt.isPresent()) {
             data.getExtraInfo().remove("ignore_reply");
             menuHandler.handle(sesion, input);
+
+            // Si tras procesar la opción el estado resultante es el menú (estado 1), aplicar bloqueo 24hs
+            if (sesion.getCurrentState().getId() == 1L && estaEnPeriodoDeBloqueo(data, now)) {
+                log.info("🤫 Supresión de menú (estado 1) por regla de 24hs tras opción");
+                data.addExtra("ignore_reply", "true");
+                return null;
+            }
+
             actualizarTimestampMenu(data, now);
             return sesion.getCurrentState().getMessage();
         }
@@ -136,6 +152,14 @@ public class BotService {
                 log.info("🌐 Salto Global a opción [{}]", input);
                 sesion.setCurrentState(menuPrincipal);
                 menuHandler.handle(sesion, input);
+
+                // Aplicar bloqueo 24hs también en saltos globales al menú
+                if (sesion.getCurrentState().getId() == 1L && estaEnPeriodoDeBloqueo(data, now)) {
+                    log.info("🤫 Supresión de menú (estado 1) por regla de 24hs tras salto global");
+                    data.addExtra("ignore_reply", "true");
+                    return null;
+                }
+
                 actualizarTimestampMenu(data, now);
                 return sesion.getCurrentState().getMessage();
             }
