@@ -88,6 +88,25 @@
     </dependencies>
 
     <build>
+        <resources>
+            <!-- Recursos con filtering habilitado (properties, yml, xml) -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <excludes>
+                    <exclude>static/images/**</exclude>
+                </excludes>
+            </resource>
+            <!-- Imágenes sin filtering para no corromper binarios -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>static/images/**</include>
+                </includes>
+            </resource>
+        </resources>
+
         <plugins>
 
             <!-- SPRING BOOT -->
