@@ -36,18 +36,29 @@ public class WhatsappService {
     private String accessToken;
 
     public String sendMessage(String phone, String message) {
-
         log.info("📤 Enviando mensaje de texto a [{}]", phone);
         log.debug("📝 Contenido mensaje: {}", message);
-
         var body = Map.of(
                 "messaging_product", "whatsapp",
                 "to", formatPhone(phone),
                 "type", "text",
                 "text", Map.of("body", message)
         );
-
         return execute(body);
+    }
+
+    public String sendTemplateWithAutoRefresh(String phone, BotState state, String bodyText) {
+        try {
+            return sendTemplate(phone, state.getTemplateName(), state.getMediaId(), bodyText);
+        } catch (HttpClientErrorException e) {
+            if (!isExpiredMediaError(e)) {
+                throw e;
+            }
+            log.warn("🔁 Media ID expirado en template [{}] para estado [{}]. Re-subiendo desde [{}]",
+                    state.getTemplateName(), state.getName(), state.getMediaPath());
+            String newMediaId = refreshMediaId(state);
+            return sendTemplate(phone, state.getTemplateName(), newMediaId, bodyText);
+        }
     }
 
     public String sendTemplate(String phone, String templateName, String mediaId, String bodyText) {
@@ -168,9 +179,7 @@ public class WhatsappService {
     }
 
     private String execute(Object body) {
-
         log.debug("🚀 Ejecutando request a WhatsApp API");
-
         try {
             var response = restClient.post()
                     .uri("/{id}/messages", phoneNumberId)
