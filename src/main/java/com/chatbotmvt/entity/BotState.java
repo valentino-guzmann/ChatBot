@@ -23,6 +23,8 @@ public class BotState {
 
     private String templateName;
     private String mediaId;
+    private String mediaPath;
+    private String mediaMimeType;
 
     @Enumerated(EnumType.STRING)
     private TipoEstado type;

@@ -63,7 +63,7 @@ public class BotService {
                     messageId = whatsappService.sendTemplate(phone, estadoActual.getTemplateName(), estadoActual.getMediaId(), null);
                 }
                 else if (estadoActual.getMediaId() != null && !estadoActual.getMediaId().isBlank()) {
-                    messageId = whatsappService.sendImageById(phone, estadoActual.getMediaId(), resultado.mensajeTexto());
+                    messageId = whatsappService.sendImageWithAutoRefresh(phone, estadoActual, resultado.mensajeTexto());
                 }
                 else {
                     messageId = whatsappService.sendMessage(phone, resultado.mensajeTexto());
@@ -203,7 +203,19 @@ public class BotService {
     }
 
     private void actualizarTimestampMenu(SessionData data, LocalDateTime now) {
-        data.addExtra("LAST_MENU_TS", now.toString());
+        String lastMenuTs = data.getExtraInfo().get("LAST_MENU_TS");
+        if (lastMenuTs == null) {
+            data.addExtra("LAST_MENU_TS", now.toString());
+            return;
+        }
+        try {
+            LocalDateTime lastSent = LocalDateTime.parse(lastMenuTs);
+            if (!lastSent.isAfter(now.minusHours(24))) {
+                data.addExtra("LAST_MENU_TS", now.toString());
+            }
+        } catch (Exception e) {
+            data.addExtra("LAST_MENU_TS", now.toString());
+        }
     }
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
