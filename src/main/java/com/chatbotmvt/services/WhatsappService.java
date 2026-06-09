@@ -119,6 +119,7 @@ public class WhatsappService {
         }
 
         ClassPathResource resource = new ClassPathResource("static/" + state.getMediaPath());
+        log.info("{}recurso", resource);
 
         try {
             byte[] bytes = resource.getInputStream().readAllBytes();
