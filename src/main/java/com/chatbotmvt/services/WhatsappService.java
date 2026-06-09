@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -16,6 +15,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +26,9 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class WhatsappService {
+
+    private static final String GITHUB_RAW_BASE =
+            "https://raw.githubusercontent.com/valentino-guzmann/ChatBot/main/src/main/resources/static/";
 
     private final RestClient restClient;
     private final BotStateRepository botStateRepository;
@@ -129,18 +133,22 @@ public class WhatsappService {
             throw new IllegalStateException("El estado " + state.getName() + " no tiene mediaMimeType configurado");
         }
 
-        ClassPathResource resource = new ClassPathResource("static/" + state.getMediaPath());
-        log.info("{}recurso", resource);
+        String url = GITHUB_RAW_BASE + state.getMediaPath();
+        log.info("🌐 Descargando imagen desde GitHub Raw: {}", url);
 
         try {
-            byte[] bytes = resource.getInputStream().readAllBytes();
+            byte[] bytes;
+            try (InputStream is = URI.create(url).toURL().openStream()) {
+                bytes = is.readAllBytes();
+            }
+            log.info("💾 Imagen descargada: {} bytes", bytes.length);
             String newMediaId = uploadMedia(bytes, state.getMediaPath(), state.getMediaMimeType());
             state.setMediaId(newMediaId);
             botStateRepository.save(state);
             log.info("✅ Nuevo Media ID [{}] guardado para estado [{}]", newMediaId, state.getName());
             return newMediaId;
         } catch (IOException e) {
-            throw new RuntimeException("No se pudo leer el recurso estático: " + state.getMediaPath(), e);
+            throw new RuntimeException("No se pudo descargar la imagen desde GitHub Raw: " + url, e);
         }
     }
 
