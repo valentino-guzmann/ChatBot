@@ -108,8 +108,13 @@ public class BotService {
         SessionData data = sesion.getTempData();
         LocalDateTime now = LocalDateTime.now();
 
-        // Saludos: siempre mostrar el menú principal sin importar el estado
+        // Saludos: mostrar menú principal, respetando el bloqueo de 24hs
         if (esSaludo(input)) {
+            if (estaEnPeriodoDeBloqueo(data, now)) {
+                log.info("🤫 Saludo [{}] bloqueado por regla de 24hs", input);
+                data.addExtra("ignore_reply", "true");
+                return null;
+            }
             log.info("👋 Saludo detectado [{}]. Mostrando menú principal.", input);
             BotState menuPrincipal = botStateRepository.findById(1L).orElse(null);
             if (menuPrincipal != null) {
@@ -198,7 +203,6 @@ public class BotService {
         if (input == null || input.isBlank()) return false;
         String txt = input.trim().toLowerCase();
         if (SALUDOS.contains(txt)) return true;
-        // también detecta saludos con letras repetidas: holaaa, holaaaaa, etc.
         return txt.matches("hol+a+") || txt.matches("buen+as?");
     }
 
