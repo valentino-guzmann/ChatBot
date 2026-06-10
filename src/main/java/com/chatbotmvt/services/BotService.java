@@ -16,11 +16,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class BotService {
+
+    private static final Set<String> SALUDOS = Set.of(
+            "hola", "holaa", "holaaa", "holaaaa",
+            "buenas", "buen dia", "buen día",
+            "buenos dias", "buenos días",
+            "buenas tardes", "buenas noches",
+            "hey", "que tal", "qué tal",
+            "hi", "hello"
+    );
 
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
@@ -98,6 +108,17 @@ public class BotService {
         SessionData data = sesion.getTempData();
         LocalDateTime now = LocalDateTime.now();
 
+        // Saludos: siempre mostrar el menú principal sin importar el estado
+        if (esSaludo(input)) {
+            log.info("👋 Saludo detectado [{}]. Mostrando menú principal.", input);
+            BotState menuPrincipal = botStateRepository.findById(1L).orElse(null);
+            if (menuPrincipal != null) {
+                sesion.setCurrentState(menuPrincipal);
+                actualizarTimestampMenu(data, now);
+                return menuPrincipal.getMessage();
+            }
+        }
+
         if ((input.equals("menu") || input.equals("0")) && estadoOrigen.getId() == 1L) {
             if (estaEnPeriodoDeBloqueo(data, now)) {
                 log.info("🤫 Bloqueando reenvío de menú por [{}] en período de 24hs", input);
@@ -171,6 +192,14 @@ public class BotService {
         }
 
         return null;
+    }
+
+    private boolean esSaludo(String input) {
+        if (input == null || input.isBlank()) return false;
+        String txt = input.trim().toLowerCase();
+        if (SALUDOS.contains(txt)) return true;
+        // también detecta saludos con letras repetidas: holaaa, holaaaaa, etc.
+        return txt.matches("hol+a+") || txt.matches("buen+as?");
     }
 
     private boolean estaEnPeriodoDeBloqueo(SessionData data, LocalDateTime now) {
