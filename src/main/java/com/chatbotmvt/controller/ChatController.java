@@ -11,7 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/chats")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "https://elegant-creativity-production-5ec0.up.railway.app")
 @RequiredArgsConstructor
 public class ChatController {
 
