@@ -257,6 +257,7 @@ public class WhatsappService {
                     .build()
                     .get()
                     .uri(downloadUrl)
+                    .header("Authorization", "Bearer " + accessToken)
                     .retrieve()
                     .body(byte[].class);
         } catch (Exception e) {
