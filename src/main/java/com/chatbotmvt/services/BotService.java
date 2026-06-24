@@ -255,14 +255,48 @@ public class BotService {
     }
 
     private void registrarMensaje(String phone, String content, String sender, String messageId) {
+        registrarMensaje(phone, content, "text", sender, messageId, null, null, null);
+    }
+
+    private void registrarMensaje(String phone, String content, String type, String sender, String messageId,
+                                  String mediaId, String mediaUrl, String mimeType) {
         MensajeLog logEntry = new MensajeLog();
         logEntry.setPhone(phone);
         logEntry.setContent(content);
+        logEntry.setType(type);
         logEntry.setSender(sender);
         logEntry.setMessageId(messageId);
+        logEntry.setMediaId(mediaId);
+        logEntry.setMediaUrl(mediaUrl);
+        logEntry.setMimeType(mimeType);
         logEntry.setStatus(messageId != null ? "sent" : null);
         logEntry.setCreatedAt(OffsetDateTime.now());
         mensajeLogRepository.save(logEntry);
+    }
+
+    @Async("botExecutor")
+    public void procesarImagenEntrante(String phone, String mediaId, String mimeType, String caption) {
+        try {
+            UsuarioSesion sesion = usuarioSesionService.obtenerOCrearUsuarioSesion(phone);
+
+            String mediaUrl = whatsappService.downloadAndSaveImage(mediaId, phone);
+            String content = caption != null ? caption : "[Imagen recibida]";
+
+            registrarMensaje(phone, content, "image", "USER", null, mediaId, mediaUrl, mimeType);
+            messagingTemplate.convertAndSend("/topic/updates", phone);
+
+            if (sesion.getBotEnabled() != null && !sesion.getBotEnabled()) {
+                log.info("🤖 Bot pausado para {}. Imagen solo registrada.", phone);
+                return;
+            }
+
+            // Por ahora, si recibe una imagen, simplemente responde con un mensaje amigable
+            // o podrías conectar esto con tu lógica de flujo si necesitas manejar imágenes
+            log.info("🖼️ Imagen recibida de {}. MediaUrl: {}", phone, mediaUrl);
+
+        } catch (Exception e) {
+            log.error("❌ Error procesando imagen entrante: {}", e.getMessage(), e);
+        }
     }
 
     private record RespuestaBot(String mensajeTexto, String templateName, String mediaId) {}

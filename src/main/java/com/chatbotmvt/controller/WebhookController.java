@@ -101,6 +101,12 @@ public class WebhookController {
                     String text = msg.text().body();
                     log.info("💬 Texto del usuario: \"{}\"", text);
                     botService.procesarYResponder(phone, text);
+                } else if ("image".equals(type) && msg.image() != null) {
+                    String mediaId = msg.image().id();
+                    String mimeType = msg.image().mimeType();
+                    String caption = msg.image().caption();
+                    log.info("🖼️ Imagen recibida de [{}], mediaId=[{}], mimeType=[{}], caption=[{}]", phone, mediaId, mimeType, caption);
+                    botService.procesarImagenEntrante(phone, mediaId, mimeType, caption);
                 } else {
                     log.info("⚠ Tipo no manejado directamente: {}.", type);
                 }

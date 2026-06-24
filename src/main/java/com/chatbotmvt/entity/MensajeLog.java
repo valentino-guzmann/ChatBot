@@ -2,7 +2,6 @@ package com.chatbotmvt.entity;
 
 import jakarta.persistence.*;
         import lombok.Data;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -19,6 +18,19 @@ public class MensajeLog {
     private String content;
 
     private String sender;
+    private String type;
+
+    @Column(name = "media_id")
+    private String mediaId;
+
+    @Column(name = "media_url", length = 2048)
+    private String mediaUrl;
+
+    private String caption;
+
+    @Column(name = "mime_type")
+    private String mimeType;
+
     @Column(name = "message_id", unique = true)
     private String messageId;
 

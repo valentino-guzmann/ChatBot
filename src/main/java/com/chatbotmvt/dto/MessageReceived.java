@@ -7,5 +7,6 @@ public record MessageReceived(
         String id,
         String from,
         TextMessage text,
+        ImageMessage image,
         String type
 ) {}

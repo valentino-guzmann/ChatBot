@@ -17,10 +17,15 @@ import org.springframework.web.client.RestClient;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -39,6 +44,12 @@ public class WhatsappService {
     @Value("${access.token}")
     private String accessToken;
 
+    @Value("${app.upload.dir:uploads}")
+    private String uploadDir;
+
+    @Value("${app.base-url:}")
+    private String baseUrl;
+
     public String sendMessage(String phone, String message) {
         log.info("📤 Enviando mensaje de texto a [{}]", phone);
         log.debug("📝 Contenido mensaje: {}", message);
@@ -55,7 +66,7 @@ public class WhatsappService {
         try {
             return sendTemplate(phone, state.getTemplateName(), state.getMediaId(), bodyText);
         } catch (HttpClientErrorException e) {
-            if (!isExpiredMediaError(e)) {
+            if (isExpiredMediaError(e)) {
                 throw e;
             }
             log.warn("🔁 Media ID expirado en template [{}] para estado [{}]. Re-subiendo desde [{}]",
@@ -116,7 +127,7 @@ public class WhatsappService {
         try {
             return sendImageById(phone, state.getMediaId(), caption);
         } catch (HttpClientErrorException e) {
-            if (!isExpiredMediaError(e)) {
+            if (isExpiredMediaError(e)) {
                 throw e;
             }
             log.warn("🔁 Media ID expirado para estado [{}]. Re-subiendo desde [{}]", state.getName(), state.getMediaPath());
@@ -182,9 +193,9 @@ public class WhatsappService {
 
     private boolean isExpiredMediaError(HttpClientErrorException e) {
         String body = e.getResponseBodyAsString();
-        return e.getStatusCode().value() == 400
-                && body.contains("\"code\":131009")
-                && body.contains("does not exist or has expired");
+        return e.getStatusCode().value() != 400
+                || !body.contains("\"code\":131009")
+                || !body.contains("does not exist or has expired");
     }
 
     private String execute(Object body) {
@@ -215,4 +226,79 @@ public class WhatsappService {
         return p;
     }
 
+    public MediaInfo getMediaInfo(String mediaId) {
+        log.info("📥 Obteniendo info de media [{}]", mediaId);
+        try {
+            var response = restClient.get()
+                    .uri("/{mediaId}", mediaId)
+                    .header("Authorization", "Bearer " + accessToken)
+                    .retrieve()
+                    .body(Map.class);
+
+            if (response == null || response.get("url") == null) {
+                throw new IllegalStateException("WhatsApp no devolvió URL de descarga para mediaId: " + mediaId);
+            }
+
+            return new MediaInfo(
+                    response.get("url").toString(),
+                    response.get("mime_type") != null ? response.get("mime_type").toString() : null,
+                    response.get("sha256") != null ? response.get("sha256").toString() : null
+            );
+        } catch (HttpClientErrorException e) {
+            log.error("❌ Error obteniendo media info: {}", e.getResponseBodyAsString());
+            throw e;
+        }
+    }
+
+    public byte[] downloadMediaBytes(String downloadUrl) {
+        log.info("📥 Descargando media desde URL");
+        try {
+            return RestClient.builder()
+                    .build()
+                    .get()
+                    .uri(downloadUrl)
+                    .retrieve()
+                    .body(byte[].class);
+        } catch (Exception e) {
+            log.error("❌ Error descargando media: {}", e.getMessage(), e);
+            throw new RuntimeException("No se pudo descargar la imagen", e);
+        }
+    }
+
+    public String downloadAndSaveImage(String mediaId, String phone) {
+        try {
+            MediaInfo info = getMediaInfo(mediaId);
+            byte[] bytes = downloadMediaBytes(info.url());
+
+            String extension = getExtensionFromMimeType(info.mimeType());
+            String filename = phone + "_" + UUID.randomUUID() + extension;
+
+            Path uploadPath = Paths.get(uploadDir);
+            if (!Files.exists(uploadPath)) {
+                Files.createDirectories(uploadPath);
+            }
+
+            Path filePath = uploadPath.resolve(filename);
+            Files.write(filePath, bytes, StandardOpenOption.CREATE);
+
+            log.info("✅ Imagen guardada en: {}", filePath);
+            return "/uploads/" + filename;
+        } catch (IOException e) {
+            log.error("❌ Error guardando imagen: {}", e.getMessage(), e);
+            throw new RuntimeException("No se pudo guardar la imagen", e);
+        }
+    }
+
+    private String getExtensionFromMimeType(String mimeType) {
+        if (mimeType == null) return ".jpg";
+        return switch (mimeType) {
+            case "image/jpeg" -> ".jpg";
+            case "image/png" -> ".png";
+            case "image/gif" -> ".gif";
+            case "image/webp" -> ".webp";
+            default -> ".jpg";
+        };
+    }
+
+    public record MediaInfo(String url, String mimeType, String sha256) {}
 }
