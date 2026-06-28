@@ -66,13 +66,13 @@ public class WhatsappService {
         try {
             return sendTemplate(phone, state.getTemplateName(), state.getMediaId(), bodyText);
         } catch (HttpClientErrorException e) {
-            if (isExpiredMediaError(e)) {
-                throw e;
+            if (isMediaIdError(e)) {
+                log.warn("🔁 Media ID inválido o expirado en template [{}] para estado [{}]. Re-subiendo desde [{}]",
+                        state.getTemplateName(), state.getName(), state.getMediaPath());
+                String newMediaId = refreshMediaId(state);
+                return sendTemplate(phone, state.getTemplateName(), newMediaId, bodyText);
             }
-            log.warn("🔁 Media ID expirado en template [{}] para estado [{}]. Re-subiendo desde [{}]",
-                    state.getTemplateName(), state.getName(), state.getMediaPath());
-            String newMediaId = refreshMediaId(state);
-            return sendTemplate(phone, state.getTemplateName(), newMediaId, bodyText);
+            throw e;
         }
     }
 
@@ -127,12 +127,12 @@ public class WhatsappService {
         try {
             return sendImageById(phone, state.getMediaId(), caption);
         } catch (HttpClientErrorException e) {
-            if (isExpiredMediaError(e)) {
-                throw e;
+            if (isMediaIdError(e)) {
+                log.warn("🔁 Media ID inválido o expirado para estado [{}]. Re-subiendo desde [{}]", state.getName(), state.getMediaPath());
+                String newMediaId = refreshMediaId(state);
+                return sendImageById(phone, newMediaId, caption);
             }
-            log.warn("🔁 Media ID expirado para estado [{}]. Re-subiendo desde [{}]", state.getName(), state.getMediaPath());
-            String newMediaId = refreshMediaId(state);
-            return sendImageById(phone, newMediaId, caption);
+            throw e;
         }
     }
 
@@ -191,11 +191,16 @@ public class WhatsappService {
         return response.get("id").toString();
     }
 
-    private boolean isExpiredMediaError(HttpClientErrorException e) {
-        String body = e.getResponseBodyAsString();
-        return e.getStatusCode().value() != 400
-                || !body.contains("\"code\":131009")
-                || !body.contains("does not exist or has expired");
+    private boolean isMediaIdError(HttpClientErrorException e) {
+        if (e.getStatusCode().value() != 400) return false;
+        String body = e.getResponseBodyAsString().toLowerCase();
+        // Error de media expirado (code 131009)
+        if (body.contains("\"code\":131009") && body.contains("does not exist or has expired")) return true;
+        // Error de media ID inválido (code 100) - "not a valid whatsapp business account media attachment ID"
+        if (body.contains("\"code\":100") && body.contains("media attachment id")) return true;
+        // Error genérico de image.id no válido
+        if (body.contains("image.id") && body.contains("not valid")) return true;
+        return false;
     }
 
     private String execute(Object body) {
