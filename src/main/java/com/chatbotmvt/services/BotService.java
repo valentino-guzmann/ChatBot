@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -32,6 +33,8 @@ public class BotService {
             "hi", "hello"
     );
 
+    private static final Set<Long> ESTADOS_DIRECCION_RECLAMO = Set.of(4L, 5L, 30L, 31L, 21L, 33L);
+
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
     private final BotFlowRuleService botFlowRuleService;
@@ -39,6 +42,7 @@ public class BotService {
     private final ActionHandlerFactory actionHandlerFactory;
     private final BotStateRepository botStateRepository;
     private final WhatsappService whatsappService;
+    private final ReclamoService reclamoService;
     private final MensajeLogRepository mensajeLogRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
@@ -130,6 +134,22 @@ public class BotService {
                 data.addExtra("ignore_reply", "true");
                 return null;
             }
+        }
+
+        // 2. Reclamo simplificado: en estados de dirección, cualquier texto crea el reclamo y vuelve al menú
+        if (ESTADOS_DIRECCION_RECLAMO.contains(estadoOrigen.getId())
+                && !input.isBlank()
+                && !input.equals("menu")
+                && !input.equals("0")
+                && !esSaludo(input)) {
+            log.info("📝 Reclamo simplificado desde estado [{}]. Dirección: [{}]", estadoOrigen.getId(), input);
+            return procesarReclamoSimple(sesion, input, data, now);
+        }
+
+        // 3. Estado 23L (selección de zona Bolsones/Desperdicios) + "0" → volver al menú con solo opciones
+        if (estadoOrigen.getId() == 23L && input.equals("0")) {
+            log.info("🔙 Volviendo al menú desde selección de zona (estado 23L)");
+            return volverAlMenuConOpciones(sesion, data, now);
         }
 
         Optional<BotFlowRule> ruleOpt = botFlowRuleService.findExact(estadoOrigen, input);
@@ -231,6 +251,59 @@ public class BotService {
         } catch (Exception e) {
             data.addExtra("LAST_MENU_TS", now.toString());
         }
+    }
+
+    private String procesarReclamoSimple(UsuarioSesion sesion, String input, SessionData data, LocalDateTime now) {
+        data.setDireccion(input);
+
+        String tipo = data.getTipoReclamo();
+        if (tipo == null || tipo.isBlank()) {
+            tipo = "GENERAL";
+        }
+
+        String descripcion = String.format("Dirección: %s", input);
+        reclamoService.crearReclamo(sesion.getPhone(), tipo, descripcion, sesion.getSector());
+        log.info("✅ Reclamo simple creado para [{}] tipo=[{}] direccion=[{}]", sesion.getPhone(), tipo, input);
+
+        // Limpiar datos temporales del reclamo
+        data.setDireccion(null);
+        data.setReferencia(null);
+        data.setTipoReclamo(null);
+        data.setPendingSectorId(null);
+
+        // Volver al menú principal
+        BotState menuPrincipal = botStateRepository.findById(1L).orElse(null);
+        if (menuPrincipal != null) {
+            sesion.setCurrentState(menuPrincipal);
+            actualizarTimestampMenu(data, now);
+            return menuPrincipal.getMessage();
+        }
+        return null;
+    }
+
+    private String volverAlMenuConOpciones(UsuarioSesion sesion, SessionData data, LocalDateTime now) {
+        BotState menuPrincipal = botStateRepository.findById(1L).orElse(null);
+        if (menuPrincipal == null) {
+            return null;
+        }
+
+        sesion.setCurrentState(menuPrincipal);
+        actualizarTimestampMenu(data, now);
+
+        // Construir mensaje solo con las opciones (sin el encabezado completo del menú)
+        var opciones = botOpcionService.obtenerOpciones(menuPrincipal);
+        if (opciones.isEmpty()) {
+            return menuPrincipal.getMessage();
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("¿En qué puedo ayudarte?").append("\n\n");
+
+        for (var opcion : opciones) {
+            sb.append(opcion.getOptionKey()).append(" ").append(opcion.getDescription()).append("\n");
+        }
+
+        return sb.toString().trim();
     }
 
     private String reemplazarEtiquetas(String mensaje, UsuarioSesion sesion) {
