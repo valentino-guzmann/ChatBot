@@ -37,6 +37,7 @@ public class WhatsappService {
 
     private final RestClient restClient;
     private final BotStateRepository botStateRepository;
+    private final CloudinaryService cloudinaryService;
 
     @Value("${whatsapp.phone-id}")
     private String phoneNumberId;
@@ -279,6 +280,14 @@ public class WhatsappService {
             String extension = getExtensionFromMimeType(info.mimeType());
             String filename = phone + "_" + UUID.randomUUID() + extension;
 
+            // Intentar subir a Cloudinary primero
+            String cloudinaryUrl = cloudinaryService.uploadImage(bytes, filename);
+            if (cloudinaryUrl != null) {
+                log.info("☁️ Imagen subida a Cloudinary: {}", cloudinaryUrl);
+                return cloudinaryUrl;
+            }
+
+            // Fallback: guardar localmente (si Cloudinary no está configurado)
             Path uploadPath = Paths.get(uploadDir);
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
@@ -287,7 +296,7 @@ public class WhatsappService {
             Path filePath = uploadPath.resolve(filename);
             Files.write(filePath, bytes, StandardOpenOption.CREATE);
 
-            log.info("✅ Imagen guardada en: {}", filePath);
+            log.info("✅ Imagen guardada localmente: {}", filePath);
             return "/uploads/" + filename;
         } catch (IOException e) {
             log.error("❌ Error guardando imagen: {}", e.getMessage(), e);
