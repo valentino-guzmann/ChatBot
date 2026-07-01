@@ -32,7 +32,7 @@ public class BotService {
             "hi", "hello"
     );
 
-    private static final Set<Long> ESTADOS_DIRECCION_RECLAMO = Set.of(4L, 5L, 30L, 31L, 21L, 33L);
+    private static final Set<Long> ESTADOS_DIRECCION_RECLAMO = Set.of(4L, 5L, 30L, 31L);
 
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
@@ -145,9 +145,12 @@ public class BotService {
             return procesarReclamoSimple(sesion, input, data, now);
         }
 
-        // 3. Estado 23L (selección de zona Bolsones/Desperdicios) + "0" → volver al menú con solo opciones
-        if (estadoOrigen.getId() == 23L && input.equals("0")) {
-            log.info("🔙 Volviendo al menú desde selección de zona (estado 23L)");
+        // 3. "0" o "menu" desde cualquier estado intermedio (no menú principal, no estado de dirección)
+        // → volver al menú con solo las opciones, sin el saludo completo
+        if ((input.equals("0") || input.equals("menu"))
+                && estadoOrigen.getId() != 1L
+                && !ESTADOS_DIRECCION_RECLAMO.contains(estadoOrigen.getId())) {
+            log.info("🔙 Volviendo al menú desde estado intermedio [{}]", estadoOrigen.getId());
             return volverAlMenuConOpciones(sesion, data, now);
         }
 
@@ -287,7 +290,7 @@ public class BotService {
         }
 
         sesion.setCurrentState(menuPrincipal);
-        actualizarTimestampMenu(data, now);
+        // NO actualizamos el timestamp de menú porque solo mostramos opciones, no el menú completo
 
         // Construir mensaje solo con las opciones (sin el encabezado completo del menú)
         var opciones = botOpcionService.obtenerOpciones(menuPrincipal);

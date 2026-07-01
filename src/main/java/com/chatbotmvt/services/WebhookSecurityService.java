@@ -16,7 +16,7 @@ public class WebhookSecurityService {
     private String appSecret;
 
     public boolean isValidSignature(String payload, String signature) {
-        return true; // TODO: implementar HmacSHA256 con tu APP_SECRET
+        return isSignatureValid(payload, signature);
     }
 
     public boolean isSignatureValid(String payload, String signature) {

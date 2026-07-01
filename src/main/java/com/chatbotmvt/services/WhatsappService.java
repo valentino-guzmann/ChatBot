@@ -37,7 +37,6 @@ public class WhatsappService {
 
     private final RestClient restClient;
     private final BotStateRepository botStateRepository;
-    private final CloudinaryService cloudinaryService;
 
     @Value("${whatsapp.phone-id}")
     private String phoneNumberId;
@@ -274,26 +273,37 @@ public class WhatsappService {
 
     public String downloadAndSaveImage(String mediaId, String phone) {
         try {
+            // Validar que el phone sea numérico (evita path traversal)
+            if (phone == null || !phone.matches("\\d+")) {
+                throw new IllegalArgumentException("Número de teléfono inválido");
+            }
+
             MediaInfo info = getMediaInfo(mediaId);
             byte[] bytes = downloadMediaBytes(info.url());
 
-            String extension = getExtensionFromMimeType(info.mimeType());
-            String filename = phone + "_" + UUID.randomUUID() + extension;
-
-            // Intentar subir a Cloudinary primero
-            String cloudinaryUrl = cloudinaryService.uploadImage(bytes, filename);
-            if (cloudinaryUrl != null) {
-                log.info("☁️ Imagen subida a Cloudinary: {}", cloudinaryUrl);
-                return cloudinaryUrl;
+            // Validar tamaño máximo (10MB)
+            if (bytes.length > 10 * 1024 * 1024) {
+                throw new IllegalArgumentException("Imagen demasiado grande (máx 10MB)");
             }
 
-            // Fallback: guardar localmente (si Cloudinary no está configurado)
+            String extension = getExtensionFromMimeType(info.mimeType());
+            // Sanitizar: solo usar UUID + extensión, nunca el teléfono directo en el filename expuesto
+            String filename = UUID.randomUUID() + extension;
+
             Path uploadPath = Paths.get(uploadDir);
+            if (!uploadPath.isAbsolute()) {
+                uploadPath = Paths.get(System.getProperty("user.dir"), uploadDir).toAbsolutePath();
+            }
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
             }
 
-            Path filePath = uploadPath.resolve(filename);
+            // Prevenir path traversal: resolver el path y verificar que esté dentro de uploadDir
+            Path filePath = uploadPath.resolve(filename).normalize();
+            if (!filePath.startsWith(uploadPath.normalize())) {
+                throw new SecurityException("Path traversal detectado");
+            }
+
             Files.write(filePath, bytes, StandardOpenOption.CREATE);
 
             log.info("✅ Imagen guardada localmente: {}", filePath);

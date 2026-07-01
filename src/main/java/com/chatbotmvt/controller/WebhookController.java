@@ -3,6 +3,7 @@ package com.chatbotmvt.controller;
 import com.chatbotmvt.dto.*;
 import com.chatbotmvt.repository.MensajeLogRepository;
 import com.chatbotmvt.services.BotService;
+import com.chatbotmvt.services.RateLimiterService;
 import com.chatbotmvt.services.WebhookSecurityService;
 import com.github.benmanes.caffeine.cache.Cache;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -22,6 +24,7 @@ public class WebhookController {
 
     private final BotService botService;
     private final WebhookSecurityService securityService;
+    private final RateLimiterService rateLimiterService;
     private final ObjectMapper objectMapper;
     private final MensajeLogRepository mensajeLogRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -43,22 +46,35 @@ public class WebhookController {
 
     @PostMapping
     public ResponseEntity<Void> receiveMessage(
-            @RequestHeader(value = "X-Hub-Signature-256", required = false) String signature,
-            @RequestBody String rawPayload) {
+            @RequestHeader(value = "X-Hub-Signature-256", required = true) String signature,
+            @RequestBody String rawPayload,
+            HttpServletRequest request) {
 
-        log.info("📥 POST /webhook recibido");
+        String clientIp = getClientIp(request);
+        if (!rateLimiterService.isAllowed(clientIp)) {
+            log.warn("🚫 Rate limit excedido desde IP: {}", clientIp);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
+        }
+
+        log.info("📥 POST /webhook recibido desde IP: {}", clientIp);
         ResponseEntity<Void> response = ResponseEntity.ok().build();
         CompletableFuture.runAsync(() -> processWebhookAsync(signature, rawPayload));
         return response;
     }
 
+    private String getClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader == null) {
+            return request.getRemoteAddr();
+        }
+        return xfHeader.split(",")[0].trim();
+    }
+
     private void processWebhookAsync(String signature, String rawPayload) {
         try {
-            if (signature != null && !signature.isBlank()) {
-                if (!securityService.isSignatureValid(rawPayload, signature)) {
-                    log.error("❌ Firma inválida. Revisa APP_SECRET");
-                    return;
-                }
+            if (!securityService.isSignatureValid(rawPayload, signature)) {
+                log.error("❌ Firma inválida. Request rechazado.");
+                return;
             }
 
             WebhookRequest request = objectMapper.readValue(rawPayload, WebhookRequest.class);
