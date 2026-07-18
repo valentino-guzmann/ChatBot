@@ -31,6 +31,9 @@ public class MensajeLog {
     @Column(name = "mime_type")
     private String mimeType;
 
+    @Column(name = "read_by_operator", nullable = false)
+    private Boolean readByOperator = false;
+
     @Column(name = "message_id", unique = true)
     private String messageId;
 

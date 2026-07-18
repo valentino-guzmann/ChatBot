@@ -10,6 +10,7 @@ public record UsuarioDTO(
         Boolean botEnabled,
         String lastMessage,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt
+        OffsetDateTime updatedAt,
+        Integer unreadCount
 ) {
 }

@@ -40,6 +40,18 @@ public class ChatController {
         return ResponseEntity.ok(chatService.obtenerHistorial(phone));
     }
 
+    @PatchMapping("/{phone}/read")
+    public ResponseEntity<?> marcarComoLeido(
+            @RequestHeader(value = "X-API-Key", required = false) String requestKey,
+            @PathVariable String phone) {
+        if (!isValidApiKey(requestKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("API key requerida");
+        }
+        chatService.marcarComoLeido(phone);
+        messagingTemplate.convertAndSend("/topic/updates", "read_update");
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/send")
     public ResponseEntity<?> enviarMensajeManual(@RequestHeader(value = "X-API-Key", required = false) String requestKey,
                                                    @RequestBody SendMessageDTO dto) {

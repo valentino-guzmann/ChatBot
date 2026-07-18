@@ -49,6 +49,8 @@ public class UsuarioSesionService {
                             .map(MensajeLog::getContent)
                             .orElse("Sin mensajes");
 
+                    long unread = mensajeLogRepository.countUnreadByPhone(u.getPhone());
+
                     return new UsuarioDTO(
                             u.getPhone(),
                             u.getCurrentState() != null ? u.getCurrentState().getId() : null,
@@ -56,7 +58,8 @@ public class UsuarioSesionService {
                             u.getBotEnabled(),
                             ultimoMsg,
                             u.getCreated_at(),
-                            u.getUpdated_at()
+                            u.getUpdated_at(),
+                            (int) unread
                     );
                 })
                 .toList();

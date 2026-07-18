@@ -3,6 +3,7 @@ package com.chatbotmvt.services;
 import com.chatbotmvt.dto.UsuarioDTO;
 import com.chatbotmvt.entity.MensajeLog;
 import com.chatbotmvt.repository.MensajeLogRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -21,6 +22,11 @@ public class ChatService {
 
     public List<MensajeLog> obtenerHistorial(String phone) {
         return logRepository.findByPhoneOrderByCreatedAtAsc(phone);
+    }
+
+    @Transactional
+    public void marcarComoLeido(String phone) {
+        logRepository.markAsReadByOperator(phone);
     }
 
     public void enviarMensajeManual(String phone, String content) {
