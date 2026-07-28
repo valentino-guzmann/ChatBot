@@ -273,7 +273,14 @@ public class BotService {
         data.setTipoReclamo(null);
         data.setPendingSectorId(null);
 
-        // Volver al menú principal
+        // Ir a estado de reclamo exitoso (25) en lugar del menú principal
+        BotState estadoExito = botStateRepository.findById(25L).orElse(null);
+        if (estadoExito != null) {
+            sesion.setCurrentState(estadoExito);
+            return estadoExito.getMessage();
+        }
+
+        // Fallback al menú principal si no existe el estado 25
         BotState menuPrincipal = botStateRepository.findById(1L).orElse(null);
         if (menuPrincipal != null) {
             sesion.setCurrentState(menuPrincipal);
