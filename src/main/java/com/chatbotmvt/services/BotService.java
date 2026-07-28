@@ -32,7 +32,7 @@ public class BotService {
             "hi", "hello"
     );
 
-    private static final Set<Long> ESTADOS_DIRECCION_RECLAMO = Set.of(4L, 5L, 30L, 31L);
+    private static final Set<Long> ESTADOS_DIRECCION_RECLAMO = Set.of(4L, 5L, 23L, 27L, 30L, 31L);
 
     private final UsuarioSesionService usuarioSesionService;
     private final MenuHandler menuHandler;
